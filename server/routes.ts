@@ -7,6 +7,7 @@ import archiver from "archiver";
 import sharp from "sharp";
 import { db } from "../db";
 import { uploads } from "@db/schema";
+import { fal } from "@fal-ai/client";
 
 interface MulterRequest extends Request {
   files: { [fieldname: string]: Express.Multer.File[] };
@@ -17,7 +18,7 @@ const upload = multer({
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB
   },
-  fileFilter: (_, file, cb) => {
+  fileFilter: (_: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!allowedTypes.includes(file.mimetype)) {
       cb(new Error('Invalid file type'));
@@ -88,10 +89,16 @@ export function registerRoutes(app: Express) {
 
         await archive.finalize();
 
+        // Convert ZIP to File object and upload to FAL
+        const zipBuffer = await fs.readFile(zipPath);
+        const zipFile = new File([zipBuffer], zipFilename, { type: 'application/zip' });
+        const falUrl = await fal.storage.upload(zipFile);
+
         // Save to database
         const [upload] = await db.insert(uploads)
           .values({
             zipPath: zipPath,
+            falUrl: falUrl,
             status: 'completed'
           })
           .returning();
@@ -103,7 +110,8 @@ export function registerRoutes(app: Express) {
 
         res.json({
           success: true,
-          uploadId: upload.id
+          uploadId: upload.id,
+          falUrl: falUrl
         });
 
       } catch (error) {
