@@ -9,10 +9,16 @@ import { UploadStatus } from "./UploadStatus";
 import { Upload } from "lucide-react";
 import { fal } from "@fal-ai/client";
 
+import { config } from "@/lib/config";
+
 // Configure FAL client with API key
-fal.config({
-  credentials: import.meta.env.VITE_FAL_AI_API_KEY
-});
+if (!config.falAiApiKey) {
+  console.error('FAL.ai API key is not configured');
+} else {
+  fal.config({
+    credentials: config.falAiApiKey
+  });
+}
 
 export function PhotoUploader() {
   const [files, setFiles] = useState<File[]>([]);
