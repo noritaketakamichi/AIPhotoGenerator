@@ -11,6 +11,7 @@ import { Upload } from "lucide-react";
 export function PhotoUploader() {
   const [files, setFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [falUrl, setFalUrl] = useState<string | null>(null);
   const { toast } = useToast();
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -55,11 +56,12 @@ export function PhotoUploader() {
 
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast({
         title: "Success!",
         description: "Photos uploaded and ZIP created successfully",
       });
+      setFalUrl(data.falUrl);
       setFiles([]);
       setUploadProgress(0);
     },
@@ -137,6 +139,20 @@ export function PhotoUploader() {
               </Button>
             </div>
           </div>
+        </div>
+      )}
+
+      {falUrl && (
+        <div className="mt-4 p-4 border rounded-lg bg-muted">
+          <p className="font-medium">ZIP File URL:</p>
+          <a 
+            href={falUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline break-all"
+          >
+            {falUrl}
+          </a>
         </div>
       )}
     </div>
