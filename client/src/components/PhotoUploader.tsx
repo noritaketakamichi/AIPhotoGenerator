@@ -68,11 +68,18 @@ export function PhotoUploader() {
         throw new Error('Upload failed');
       }
 
-      return response.json() as Promise<{
+      const result = await response.json() as {
         success: boolean;
         uploadId: number;
         falUrl: string;
-      }>;
+      };
+
+      // If we're in mock mode, simulate a small delay
+      if (config.aiTrainingApiEnv === 'mock') {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      return result;
     },
     onSuccess: async (data) => {
       toast({
