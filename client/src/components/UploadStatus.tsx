@@ -20,7 +20,7 @@ export function UploadStatus({ filesCount, isUploading }: UploadStatusProps) {
 
   if (filesCount === 4) {
     return (
-      <Badge variant="success" className="gap-1">
+      <Badge variant="default" className="gap-1 bg-green-500">
         <Check className="h-3 w-3" />
         Ready to upload
       </Badge>
