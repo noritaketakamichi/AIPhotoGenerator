@@ -14,8 +14,10 @@ fal.config({
   credentials: process.env.FAL_AI_API_KEY
 });
 
-interface MulterRequest extends Request {
-  files: { [fieldname: string]: Express.Multer.File[] } | undefined;
+interface MulterRequest extends Omit<Request, 'files'> {
+  files?: {
+    [fieldname: string]: Express.Multer.File[];
+  };
 }
 
 const upload = multer({

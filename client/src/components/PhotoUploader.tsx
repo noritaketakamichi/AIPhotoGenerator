@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation } from "@tanstack/react-query";
+import { type UseMutationResult } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
@@ -38,7 +39,12 @@ export function PhotoUploader() {
     maxSize: 5242880, // 5MB
   });
 
-  const uploadMutation = useMutation({
+  const uploadMutation: UseMutationResult<
+    { success: boolean; uploadId: number; falUrl: string },
+    Error,
+    File[],
+    unknown
+  > = useMutation({
     mutationFn: async (files: File[]) => {
       const formData = new FormData();
       files.forEach((file, index) => {
