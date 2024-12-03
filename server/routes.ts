@@ -9,6 +9,11 @@ import { db } from "../db";
 import { uploads } from "@db/schema";
 import { fal } from "@fal-ai/client";
 
+// Configure FAL client with API key
+fal.config({
+  credentials: process.env.FAL_AI_API_KEY
+});
+
 interface MulterRequest extends Request {
   files: { [fieldname: string]: Express.Multer.File[] };
 }
