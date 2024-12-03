@@ -1,11 +1,16 @@
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs/promises";
+import { createWriteStream } from "fs";
 import archiver from "archiver";
 import sharp from "sharp";
 import { db } from "../db";
 import { uploads } from "@db/schema";
+
+interface MulterRequest extends Request {
+  files: { [fieldname: string]: Express.Multer.File[] };
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -37,9 +42,9 @@ export function registerRoutes(app: Express) {
       { name: 'photo3', maxCount: 1 },
       { name: 'photo4', maxCount: 1 }
     ]),
-    async (req, res) => {
+    async (req: MulterRequest, res) => {
       try {
-        const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+        const files = req.files;
         
         if (!files || !files.photo1?.[0] || !files.photo2?.[0] || !files.photo3?.[0] || !files.photo4?.[0]) {
           return res.status(400).json({ error: 'Exactly 4 photos required' });
@@ -72,7 +77,7 @@ export function registerRoutes(app: Express) {
         // Create ZIP
         const zipFilename = `${Date.now()}.zip`;
         const zipPath = path.join(UPLOAD_DIR, zipFilename);
-        const output = fs.createWriteStream(zipPath);
+        const output = createWriteStream(zipPath);
         const archive = archiver('zip', { zlib: { level: 9 } });
 
         archive.pipe(output);
