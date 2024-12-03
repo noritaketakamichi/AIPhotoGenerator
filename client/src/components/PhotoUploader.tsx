@@ -11,12 +11,13 @@ import { fal } from "@fal-ai/client";
 
 import { config } from "@/lib/config";
 
-// Configure FAL client with API key
+// Configure FAL client with API key and base URL
 if (!config.falAiApiKey) {
   console.error('FAL.ai API key is not configured');
 } else {
   fal.config({
-    credentials: config.falAiApiKey
+    credentials: config.falAiApiKey,
+    baseUrl: config.falAiBaseUrl
   });
 }
 
