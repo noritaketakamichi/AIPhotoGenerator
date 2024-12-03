@@ -15,7 +15,7 @@ fal.config({
 });
 
 interface MulterRequest extends Request {
-  files: { [fieldname: string]: Express.Multer.File[] };
+  files: { [fieldname: string]: Express.Multer.File[] } | undefined;
 }
 
 const upload = multer({

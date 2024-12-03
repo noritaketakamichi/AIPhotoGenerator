@@ -1,6 +1,42 @@
+# Dependencies
 node_modules
+.pnp
+.pnp.js
+
+# Build outputs
 dist
+build
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE and editor files
+.idea
+.vscode
+*.swp
+*.swo
 .DS_Store
+
+# Runtime data
+uploads/*
+!uploads/.gitkeep
 server/public
-vite.config.ts.*
+
+# Testing
+coverage
+
+# Misc
 *.tar.gz
+vite.config.ts.*
