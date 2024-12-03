@@ -54,7 +54,11 @@ export function PhotoUploader() {
         throw new Error('Upload failed');
       }
 
-      return response.json();
+      return response.json() as Promise<{
+        success: boolean;
+        uploadId: number;
+        falUrl: string;
+      }>;
     },
     onSuccess: (data) => {
       toast({
@@ -121,21 +125,21 @@ export function PhotoUploader() {
           </div>
 
           <div className="space-y-2">
-            {uploadMutation.isLoading && (
+            {uploadMutation.isPending && (
               <Progress value={uploadProgress} className="w-full" />
             )}
             
             <div className="flex justify-between items-center">
               <UploadStatus
                 filesCount={files.length}
-                isUploading={uploadMutation.isLoading}
+                isUploading={uploadMutation.isPending}
               />
               
               <Button
                 onClick={handleUpload}
-                disabled={files.length !== 4 || uploadMutation.isLoading}
+                disabled={files.length !== 4 || uploadMutation.isPending}
               >
-                {uploadMutation.isLoading ? "Processing..." : "Create ZIP"}
+                {uploadMutation.isPending ? "Processing..." : "Create ZIP"}
               </Button>
             </div>
           </div>

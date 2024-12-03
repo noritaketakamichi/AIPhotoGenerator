@@ -43,7 +43,7 @@ FAL_AI_API_KEY=your_fal_ai_key
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/photo-zip-manager.git
+git clone https://github.com/noritaketakamichi/AIPhotoGenerator.git
 cd photo-zip-manager
 ```
 
