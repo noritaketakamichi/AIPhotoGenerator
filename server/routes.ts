@@ -9,9 +9,15 @@ import { db } from "../db";
 import { uploads } from "@db/schema";
 import { fal } from "@fal-ai/client";
 
+// Validate required environment variables
+const FAL_AI_API_KEY = process.env.FAL_AI_API_KEY;
+if (!FAL_AI_API_KEY) {
+  throw new Error('FAL_AI_API_KEY environment variable is required');
+}
+
 // Configure FAL client with API key
 fal.config({
-  credentials: process.env.FAL_AI_API_KEY
+  credentials: FAL_AI_API_KEY
 });
 
 interface MulterRequest extends Request {
