@@ -31,10 +31,18 @@ mockServer.post('/model/train', (req, res) => {
       id: modelId,
       status: 'completed',
       result: {
-        model_id: modelId,
-        training_steps: 1000,
-        loss: 0.0023,
-        success: true
+        diffusers_lora_file: {
+          url: "https://v3.fal.media/files/penguin/MfKRMr7gp6TqNfttnWt84_pytorch_lora_weights.safetensors",
+          content_type: "application/octet-stream",
+          file_name: "pytorch_lora_weights.safetensors",
+          file_size: 89745224
+        },
+        config_file: {
+          url: "https://v3.fal.media/files/lion/1_jzXYliDKoqpnsl2ZUap_config.json",
+          content_type: "application/octet-stream",
+          file_name: "config.json",
+          file_size: 452
+        }
       }
     });
   }, 2000); // Simulate 2-second training time
