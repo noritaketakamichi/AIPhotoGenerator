@@ -1,7 +1,6 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation } from "@tanstack/react-query";
-import { type UseMutationResult } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
@@ -39,12 +38,7 @@ export function PhotoUploader() {
     maxSize: 5242880, // 5MB
   });
 
-  const uploadMutation: UseMutationResult<
-    { success: boolean; uploadId: number; falUrl: string },
-    Error,
-    File[],
-    unknown
-  > = useMutation({
+  const uploadMutation = useMutation({
     mutationFn: async (files: File[]) => {
       const formData = new FormData();
       files.forEach((file, index) => {
@@ -60,7 +54,11 @@ export function PhotoUploader() {
         throw new Error('Upload failed');
       }
 
-      return response.json();
+      return response.json() as Promise<{
+        success: boolean;
+        uploadId: number;
+        falUrl: string;
+      }>;
     },
     onSuccess: (data) => {
       toast({
@@ -127,21 +125,21 @@ export function PhotoUploader() {
           </div>
 
           <div className="space-y-2">
-            {uploadMutation.isLoading && (
+            {uploadMutation.isPending && (
               <Progress value={uploadProgress} className="w-full" />
             )}
             
             <div className="flex justify-between items-center">
               <UploadStatus
                 filesCount={files.length}
-                isUploading={uploadMutation.isLoading}
+                isUploading={uploadMutation.isPending}
               />
               
               <Button
                 onClick={handleUpload}
-                disabled={files.length !== 4 || uploadMutation.isLoading}
+                disabled={files.length !== 4 || uploadMutation.isPending}
               >
-                {uploadMutation.isLoading ? "Processing..." : "Create ZIP"}
+                {uploadMutation.isPending ? "Processing..." : "Create ZIP"}
               </Button>
             </div>
           </div>

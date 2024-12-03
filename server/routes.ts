@@ -1,4 +1,4 @@
-import type { Express, Request } from "express";
+import type { Express, Request, Response } from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs/promises";
@@ -14,10 +14,10 @@ fal.config({
   credentials: process.env.FAL_AI_API_KEY
 });
 
-interface MulterRequest extends Omit<Request, 'files'> {
-  files?: {
+interface MulterRequest extends Request {
+  files: {
     [fieldname: string]: Express.Multer.File[];
-  };
+  } | undefined;
 }
 
 const upload = multer({
@@ -50,9 +50,10 @@ export function registerRoutes(app: Express) {
       { name: 'photo3', maxCount: 1 },
       { name: 'photo4', maxCount: 1 }
     ]),
-    async (req: MulterRequest, res) => {
+    async (req: Request, res: Response) => {
       try {
-        const files = req.files;
+        const typedReq = req as MulterRequest;
+        const files = typedReq.files;
         
         if (!files || !files.photo1?.[0] || !files.photo2?.[0] || !files.photo3?.[0] || !files.photo4?.[0]) {
           return res.status(400).json({ error: 'Exactly 4 photos required' });
