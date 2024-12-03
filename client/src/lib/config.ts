@@ -1,9 +1,13 @@
 interface Config {
   falAiApiKey: string;
+  falAiBaseUrl: string;
 }
 
 export const config: Config = {
-  falAiApiKey: import.meta.env.VITE_FAL_AI_API_KEY || ''
+  falAiApiKey: import.meta.env.VITE_FAL_AI_API_KEY || '',
+  falAiBaseUrl: import.meta.env.MODE === 'development' 
+    ? 'http://localhost:5001'
+    : 'https://fal.ai'
 };
 
 // Validate required environment variables
