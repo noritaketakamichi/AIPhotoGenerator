@@ -31,18 +31,32 @@ async function ensureUploadDir() {
 export function registerRoutes(app: Express) {
   app.post(
     '/api/upload',
-    upload.array('photos', 4),
+    upload.fields([
+      { name: 'photo1', maxCount: 1 },
+      { name: 'photo2', maxCount: 1 },
+      { name: 'photo3', maxCount: 1 },
+      { name: 'photo4', maxCount: 1 }
+    ]),
     async (req, res) => {
       try {
-        if (!req.files || !Array.isArray(req.files) || req.files.length !== 4) {
+        const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+        
+        if (!files || !files.photo1?.[0] || !files.photo2?.[0] || !files.photo3?.[0] || !files.photo4?.[0]) {
           return res.status(400).json({ error: 'Exactly 4 photos required' });
         }
 
         await ensureUploadDir();
         
         // Process images
-        const processedFiles = await Promise.all(
-          req.files.map(async (file, index) => {
+        const photoFiles = [
+          files.photo1[0],
+          files.photo2[0],
+          files.photo3[0],
+          files.photo4[0]
+        ];
+
+        const processedFiles: string[] = await Promise.all(
+          photoFiles.map(async (file, index) => {
             const filename = `${Date.now()}-${index}.webp`;
             const filepath = path.join(UPLOAD_DIR, filename);
             
@@ -79,7 +93,7 @@ export function registerRoutes(app: Express) {
 
         // Cleanup processed files
         await Promise.all(
-          processedFiles.map(filepath => fs.unlink(filepath))
+          processedFiles.map((filepath: string) => fs.unlink(filepath))
         );
 
         res.json({
