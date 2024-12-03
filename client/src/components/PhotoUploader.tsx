@@ -7,11 +7,18 @@ import { useToast } from "@/hooks/use-toast";
 import { PhotoPreview } from "./PhotoPreview";
 import { UploadStatus } from "./UploadStatus";
 import { Upload } from "lucide-react";
+import { fal } from "@fal-ai/client";
+
+// Configure FAL client with API key
+fal.config({
+  credentials: import.meta.env.VITE_FAL_AI_API_KEY
+});
 
 export function PhotoUploader() {
   const [files, setFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [falUrl, setFalUrl] = useState<string | null>(null);
+  const [trainingResult, setTrainingResult] = useState<any>(null);
   const { toast } = useToast();
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -60,12 +67,42 @@ export function PhotoUploader() {
         falUrl: string;
       }>;
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       toast({
         title: "Success!",
         description: "Photos uploaded and ZIP created successfully",
       });
       setFalUrl(data.falUrl);
+      
+      try {
+        const result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
+          input: {
+            steps: 1000,
+            create_masks: true,
+            images_data_url: data.falUrl
+          },
+          logs: true,
+          onQueueUpdate: (update) => {
+            if (update.status === "IN_PROGRESS") {
+              update.logs.map((log) => log.message).forEach(console.log);
+            }
+          },
+        });
+        
+        setTrainingResult(result.data);
+        toast({
+          title: "Training Complete",
+          description: "AI model training finished successfully",
+        });
+      } catch (error) {
+        console.error('Training error:', error);
+        toast({
+          title: "Training Failed",
+          description: "Failed to train AI model",
+          variant: "destructive",
+        });
+      }
+      
       setFiles([]);
       setUploadProgress(0);
     },
@@ -157,6 +194,15 @@ export function PhotoUploader() {
           >
             {falUrl}
           </a>
+        </div>
+      )}
+
+      {trainingResult && (
+        <div className="mt-4 p-4 border rounded-lg bg-muted">
+          <p className="font-medium">Training Results:</p>
+          <pre className="mt-2 p-2 bg-background rounded overflow-auto">
+            {JSON.stringify(trainingResult, null, 2)}
+          </pre>
         </div>
       )}
     </div>
