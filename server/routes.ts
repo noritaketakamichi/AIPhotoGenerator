@@ -59,8 +59,8 @@ export function registerRoutes(app: express.Application) {
         // Save upload record to database
         const [uploadRecord] = await db.insert(uploads).values({
           status: 'completed',
-          fileCount: fileNames.length,
-          zipPath: zipPath,
+          file_count: fileNames.length,
+          zip_path: zipPath,
         }).returning();
 
         // In development, use mock URL
