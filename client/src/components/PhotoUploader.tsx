@@ -233,11 +233,10 @@ export function PhotoUploader() {
         <div className="mt-4 space-y-4">
           <div className="p-4 border rounded-lg bg-muted">
             <p className="font-medium mb-2">Enter Prompt:</p>
-            <input
-              type="text"
+            <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              className="w-full p-2 border rounded-md"
+              className="w-full p-4 border rounded-md min-h-[120px] resize-y"
               placeholder="Enter your prompt here..."
             />
             <button
