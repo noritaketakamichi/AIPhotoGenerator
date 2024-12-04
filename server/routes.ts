@@ -1,10 +1,11 @@
 import express, { Request, Response } from "express";
 import multer from "multer";
-import { mkdir } from "fs/promises";
+import { mkdir, readFile } from "fs/promises";
 import path from "path";
 import { db } from "./db";
 import { uploads } from "./db/schema";
 import { createZipArchive } from "./utils/archive";
+import { fal } from "@fal-ai/client";
 
 const storage = multer.diskStorage({
   destination: async function (req, file, cb) {
@@ -51,8 +52,6 @@ export function registerRoutes(app: express.Application) {
           [fieldname: string]: Express.Multer.File[];
         };
 
-        console.log("files", files);
-
         if (!files || Object.keys(files).length !== 4) {
           return res
             .status(400)
@@ -65,6 +64,7 @@ export function registerRoutes(app: express.Application) {
         const zipFileName = `archive-${Date.now()}.zip`;
         const zipPath = path.join(process.cwd(), "uploads", zipFileName);
 
+        // Create ZIP archive
         await createZipArchive(fileNames, zipPath);
 
         // Save upload record to database
@@ -77,8 +77,17 @@ export function registerRoutes(app: express.Application) {
           })
           .returning();
 
-        // Use production URL regardless of NODE_ENV
-        const falUrl = `https://fal.ai/uploads/${zipFileName}`;
+        // Read the ZIP file and upload to FAL.ai
+        const zipFile = await readFile(zipPath);
+        const file = new Blob([zipFile], { type: "application/zip" });
+
+        // Configure FAL.ai client
+        fal.config({
+          credentials: process.env.FAL_AI_API_KEY,
+        });
+
+        // Upload to FAL.ai storage
+        const falUrl = await fal.storage.upload(file);
 
         res.json({
           success: true,
@@ -103,6 +112,11 @@ export function registerRoutes(app: express.Application) {
         return res.status(400).json({ error: "FAL URL is required" });
       }
 
+      // Configure FAL.ai client
+      fal.config({
+        credentials: process.env.FAL_AI_API_KEY,
+      });
+
       if (process.env.AI_TRAINING_API_ENV === 'mock') {
         console.log('Using mock training response');
         return res.json({
@@ -120,12 +134,6 @@ export function registerRoutes(app: express.Application) {
           }
         });
       }
-
-      // Production mode code remains unchanged
-      const { fal } = await import("@fal-ai/client");
-      fal.config({
-        credentials: process.env.FAL_AI_API_KEY,
-      });
 
       const result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
         input: {
