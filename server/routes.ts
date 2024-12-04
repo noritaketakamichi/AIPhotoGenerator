@@ -103,14 +103,8 @@ export function registerRoutes(app: express.Application) {
   app.post("/api/train", async (req: Request, res: Response) => {
     try {
       console.log("train endpoint called");
-      console.log("Environment variables present:", {
-        hasFalKey: !!process.env.FAL_AI_API_KEY,
-        hasDBUrl: !!process.env.DATABASE_URL,
-        nodeEnv: process.env.NODE_ENV,
-        aiTrainingEnv: process.env.AI_TRAINING_API_ENV
-      });
-      
       const { falUrl } = req.body;
+
       console.log(falUrl);
 
       if (!falUrl) {
