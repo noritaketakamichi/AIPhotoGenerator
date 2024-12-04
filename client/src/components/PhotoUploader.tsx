@@ -12,16 +12,11 @@ import { fal } from "@fal-ai/client";
 import { config } from "@/lib/config";
 
 // Configure FAL client with API key and base URL
-console.log('AI Training API Environment:', config.aiTrainingApiEnv);
-console.log('Using API URL:', config.falAiBaseUrl);
-
 if (!config.falAiApiKey) {
   console.error('FAL.ai API key is not configured');
 } else {
-  // @ts-ignore - baseUrl is a valid property but not in types
   fal.config({
-    credentials: config.falAiApiKey,
-    baseUrl: config.falAiBaseUrl
+    credentials: config.falAiApiKey
   });
 }
 
@@ -78,11 +73,6 @@ export function PhotoUploader() {
         falUrl: string;
       };
 
-      // If we're in mock mode, simulate a small delay
-      if (config.aiTrainingApiEnv === 'mock') {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-
       return result;
     },
     onSuccess: async (data) => {
@@ -93,37 +83,19 @@ export function PhotoUploader() {
       setFalUrl(data.falUrl);
       
       try {
-        let result;
-        if (config.aiTrainingApiEnv === 'mock') {
-          result = {
-            diffusers_lora_file: {
-              url: "https://v3.fal.media/files/penguin/MfKRMr7gp6TqNfttnWt84_pytorch_lora_weights.safetensors",
-              content_type: "application/octet-stream",
-              file_name: "pytorch_lora_weights.safetensors",
-              file_size: 89745224
-            },
-            config_file: {
-              url: "https://v3.fal.media/files/lion/1_jzXYliDKoqpnsl2ZUap_config.json",
-              content_type: "application/octet-stream",
-              file_name: "config.json",
-              file_size: 452
+        const result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
+          input: {
+            steps: 1000,
+            create_masks: true,
+            images_data_url: data.falUrl
+          },
+          logs: true,
+          onQueueUpdate: (update) => {
+            if (update.status === "IN_PROGRESS") {
+              update.logs.map((log) => log.message).forEach(console.log);
             }
-          };
-        } else {
-          result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
-            input: {
-              steps: 1000,
-              create_masks: true,
-              images_data_url: data.falUrl
-            },
-            logs: true,
-            onQueueUpdate: (update) => {
-              if (update.status === "IN_PROGRESS") {
-                update.logs.map((log) => log.message).forEach(console.log);
-              }
-            },
-          });
-        }
+          },
+        });
         
         setTrainingResult(result.data);
         toast({
