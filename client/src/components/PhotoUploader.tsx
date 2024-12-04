@@ -233,6 +233,20 @@ export function PhotoUploader() {
         </div>
       )}
 
+      {trainingResult?.diffusers_lora_file?.url && (
+        <div className="mt-4 p-4 border rounded-lg bg-muted">
+          <p className="font-medium">Model File URL:</p>
+          <a 
+            href={trainingResult.diffusers_lora_file.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline break-all"
+          >
+            {trainingResult.diffusers_lora_file.url}
+          </a>
+        </div>
+      )}
+
       {trainingResult && (
         <div className="mt-4 p-4 border rounded-lg bg-muted">
           <p className="font-medium">Training Results:</p>
