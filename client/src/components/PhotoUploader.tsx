@@ -13,6 +13,7 @@ export function PhotoUploader() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [falUrl, setFalUrl] = useState<string | null>(null);
   const [trainingResult, setTrainingResult] = useState<any>(null);
+  const [prompt, setPrompt] = useState<string>("");
   const { toast } = useToast();
 
   const onDrop = useCallback(
@@ -225,6 +226,30 @@ export function PhotoUploader() {
           <pre className="mt-2 p-2 bg-background rounded overflow-auto">
             {JSON.stringify(trainingResult, null, 2)}
           </pre>
+        </div>
+      )}
+
+      {trainingResult && (
+        <div className="mt-4 space-y-4">
+          <div className="p-4 border rounded-lg bg-muted">
+            <p className="font-medium mb-2">Enter Prompt:</p>
+            <input
+              type="text"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              className="w-full p-2 border rounded-md"
+              placeholder="Enter your prompt here..."
+            />
+            <button
+              className="mt-2 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90"
+              onClick={() => {
+                console.log('Prompt submitted:', prompt);
+                // Future implementation will go here
+              }}
+            >
+              Submit
+            </button>
+          </div>
         </div>
       )}
     </div>
