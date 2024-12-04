@@ -21,9 +21,25 @@ const mockServer = express();
 mockServer.use(cors());
 mockServer.use(bodyParser.json());
 
-// Log all incoming requests
+// Log all incoming requests with detailed information
 mockServer.use((req, res, next) => {
-  logMockServer(`Incoming ${req.method} request to ${req.path}`, req.body);
+  const requestDetails = {
+    method: req.method,
+    path: req.path,
+    headers: req.headers,
+    body: req.body,
+    query: req.query
+  };
+  
+  logMockServer(`Incoming request details:`, requestDetails);
+
+  // Capture response data
+  const originalJson = res.json;
+  res.json = function (body) {
+    logMockServer(`Sending response:`, body);
+    return originalJson.call(this, body);
+  };
+
   next();
 });
 

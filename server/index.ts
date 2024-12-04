@@ -66,6 +66,7 @@ app.use((req, res, next) => {
   // doesn't interfere with the other routes
   if (app.get("env") === "development") {
     const aiTrainingApiEnv = process.env.AI_TRAINING_API_ENV || 'production';
+    console.log('Server AI Training API Environment:', process.env.AI_TRAINING_API_ENV);
     log(`AI Training API Environment: ${aiTrainingApiEnv}`);
     
     if (aiTrainingApiEnv === 'mock') {
