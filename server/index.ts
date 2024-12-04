@@ -65,10 +65,6 @@ app.use((req, res, next) => {
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (app.get("env") === "development") {
-    // Import and use mock FAL.ai server in development
-    const { falAiMockRouter } = await import('./mocks/falAiMock');
-    app.use('/mock/fal-ai', falAiMockRouter);
-    
     await setupVite(app, server);
   } else {
     serveStatic(app);
