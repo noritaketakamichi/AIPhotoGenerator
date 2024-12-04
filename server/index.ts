@@ -2,7 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic } from "./vite";
 import { createServer } from "http";
-import { startMockServer } from "./mocks/falAiMock";
+
 
 function log(message: string) {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -65,15 +65,9 @@ app.use((req, res, next) => {
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (app.get("env") === "development") {
-    const aiTrainingApiEnv = process.env.AI_TRAINING_API_ENV || 'production';
-    console.log('Server AI Training API Environment:', process.env.AI_TRAINING_API_ENV);
-    log(`AI Training API Environment: ${aiTrainingApiEnv}`);
-    
-    if (aiTrainingApiEnv === 'mock') {
-      // Start mock FAL.ai server only in mock environment
-      await startMockServer(5001);
-      log('Mock FAL.ai server initialized');
-    }
+    // Import and use mock FAL.ai server in development
+    const { falAiMockRouter } = await import('./mocks/falAiMock');
+    app.use('/mock/fal-ai', falAiMockRouter);
     
     await setupVite(app, server);
   } else {

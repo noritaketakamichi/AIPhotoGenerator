@@ -1,15 +1,9 @@
 interface Config {
   falAiApiKey: string;
-  falAiBaseUrl: string;
-  aiTrainingApiEnv: string;
 }
 
 export const config: Config = {
-  falAiApiKey: import.meta.env.VITE_FAL_AI_API_KEY || '',
-  falAiBaseUrl: import.meta.env.VITE_AI_TRAINING_API_ENV === 'mock'
-    ? 'http://localhost:5001'
-    : 'https://fal.ai',
-  aiTrainingApiEnv: import.meta.env.VITE_AI_TRAINING_API_ENV || 'production'
+  falAiApiKey: import.meta.env.VITE_FAL_AI_API_KEY || ''
 };
 
 // Validate required environment variables
