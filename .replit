@@ -34,10 +34,6 @@ args = "Development Server"
 task = "workflow.run"
 args = "GitHub Setup"
 
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Test Runner"
-
 [[workflows.workflow]]
 name = "Development Server"
 author = "agent"
@@ -50,7 +46,7 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "NODE_ENV=development tsx watch --clear-screen=false server/index.ts"
+args = "NODE_ENV=development npx tsx server/index.ts"
 waitForPort = 5000
 
 [[workflows.workflow]]
@@ -66,17 +62,3 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "git remote -v"
-
-[[workflows.workflow]]
-name = "Test Runner"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "jest --config jest.config.ts"

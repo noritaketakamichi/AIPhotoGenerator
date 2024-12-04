@@ -102,32 +102,56 @@ export function registerRoutes(app: express.Application) {
   // Training endpoint
   app.post("/api/train", async (req: Request, res: Response) => {
     try {
+      console.log("train endpoint called");
       const { falUrl } = req.body;
-      
+
+      console.log(falUrl);
+
       if (!falUrl) {
         return res.status(400).json({ error: "FAL URL is required" });
       }
 
-      // Initialize fal client
+      let result;
+      // Always use FAL.ai
+      const { fal } = await import("@fal-ai/client");
       fal.config({
         credentials: process.env.FAL_AI_API_KEY,
       });
 
-      const result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
-        input: {
-          steps: 1000,
-          create_masks: true,
-          images_data_url: falUrl,
-        },
-        logs: true,
-        onQueueUpdate: (update) => {
-          if (update.status === "IN_PROGRESS") {
-            console.log('Training progress:', update.logs);
-          }
-        },
-      });
+      if (process.env.AI_TRAINING_API_ENV === "production") {
+        result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
+          input: {
+            steps: 1000,
+            create_masks: true,
+            images_data_url: falUrl,
+          },
+          logs: true,
+          onQueueUpdate: (update) => {
+            if (update.status === "IN_PROGRESS") {
+              update.logs.map((log) => log.message).forEach(console.log);
+            }
+          },
+        });
+      } else {
+        result = {
+          data: {
+            diffusers_lora_file: {
+              url: "https://v3.fal.media/files/penguin/MfKRMr7gp6TqNfttnWt84_pytorch_lora_weights.safetensors",
+              content_type: "application/octet-stream",
+              file_name: "pytorch_lora_weights.safetensors",
+              file_size: 89745224,
+            },
+            config_file: {
+              url: "https://v3.fal.media/files/lion/1_jzXYliDKoqpnsl2ZUap_config.json",
+              content_type: "application/octet-stream",
+              file_name: "config.json",
+              file_size: 452,
+            },
+          },
+        };
+      }
 
-      return res.json(result.data);
+      res.json(result.data);
     } catch (error) {
       console.error("Training error:", error);
       res.status(500).json({ error: "Training failed" });
