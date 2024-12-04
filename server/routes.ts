@@ -1,137 +1,142 @@
-import type { Express, Request, Response } from "express";
-import multer from "multer";
-import path from "path";
-import fs from "fs/promises";
-import { createWriteStream } from "fs";
-import archiver from "archiver";
-import sharp from "sharp";
-import { db } from "../db";
-import { uploads } from "@db/schema";
-import { fal } from "@fal-ai/client";
+import express, { Request, Response } from 'express';
+import multer from 'multer';
+import { mkdir } from 'fs/promises';
+import path from 'path';
+import { db } from './db';
+import { uploads } from './db/schema';
+import { createZipArchive } from './utils/archive';
 
-// Validate required environment variables
-const FAL_AI_API_KEY = process.env.FAL_AI_API_KEY;
-if (!FAL_AI_API_KEY) {
-  throw new Error('FAL_AI_API_KEY environment variable is required');
-}
-
-// Configure FAL client with API key
-fal.config({
-  credentials: FAL_AI_API_KEY
+const storage = multer.diskStorage({
+  destination: async function (req, file, cb) {
+    const uploadDir = path.join(process.cwd(), 'uploads');
+    await mkdir(uploadDir, { recursive: true });
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
 });
 
-interface MulterRequest extends Request {
-  files: {
-    [fieldname: string]: Express.Multer.File[];
-  } | undefined;
-}
-
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: storage,
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB
   },
-  fileFilter: (_: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!allowedTypes.includes(file.mimetype)) {
-      cb(new Error('Invalid file type'));
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith('image/')) {
+      cb(new Error('Only images are allowed'));
       return;
     }
     cb(null, true);
-  },
+  }
 });
 
-const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
-
-async function ensureUploadDir() {
-  await fs.mkdir(UPLOAD_DIR, { recursive: true });
-}
-
-export function registerRoutes(app: Express) {
+export function registerRoutes(app: express.Application) {
+  // File upload endpoint
   app.post(
     '/api/upload',
     upload.fields([
       { name: 'photo1', maxCount: 1 },
       { name: 'photo2', maxCount: 1 },
       { name: 'photo3', maxCount: 1 },
-      { name: 'photo4', maxCount: 1 }
+      { name: 'photo4', maxCount: 1 },
     ]),
     async (req: Request, res: Response) => {
       try {
-        const typedReq = req as MulterRequest;
-        const files = typedReq.files;
+        const files = req.files as { [fieldname: string]: Express.Multer.File[] };
         
-        if (!files || !files.photo1?.[0] || !files.photo2?.[0] || !files.photo3?.[0] || !files.photo4?.[0]) {
-          return res.status(400).json({ error: 'Exactly 4 photos required' });
+        if (!files || Object.keys(files).length !== 4) {
+          return res.status(400).json({ error: 'Exactly 4 photos are required' });
         }
 
-        await ensureUploadDir();
-        
-        // Process images
-        const photoFiles = [
-          files.photo1[0],
-          files.photo2[0],
-          files.photo3[0],
-          files.photo4[0]
-        ];
+        const fileNames = Object.values(files).map(fileArr => fileArr[0].filename);
+        const zipFileName = `archive-${Date.now()}.zip`;
+        const zipPath = path.join(process.cwd(), 'uploads', zipFileName);
 
-        const processedFiles: string[] = await Promise.all(
-          photoFiles.map(async (file, index) => {
-            const filename = `${Date.now()}-${index}.webp`;
-            const filepath = path.join(UPLOAD_DIR, filename);
-            
-            await sharp(file.buffer)
-              .resize(1200, 1200, { fit: 'inside' })
-              .webp({ quality: 80 })
-              .toFile(filepath);
-            
-            return filepath;
-          })
-        );
+        await createZipArchive(fileNames, zipPath);
 
-        // Create ZIP
-        const zipFilename = `${Date.now()}.zip`;
-        const zipPath = path.join(UPLOAD_DIR, zipFilename);
-        const output = createWriteStream(zipPath);
-        const archive = archiver('zip', { zlib: { level: 9 } });
+        // Save upload record to database
+        const [uploadRecord] = await db.insert(uploads).values({
+          status: 'completed',
+          fileCount: fileNames.length,
+          zipPath: zipPath,
+        }).returning();
 
-        archive.pipe(output);
-
-        processedFiles.forEach((filepath, index) => {
-          archive.file(filepath, { name: `photo${index + 1}.webp` });
-        });
-
-        await archive.finalize();
-
-        // Convert ZIP to File object and upload to FAL
-        const zipBuffer = await fs.readFile(zipPath);
-        const zipFile = new File([zipBuffer], zipFilename, { type: 'application/zip' });
-        const falUrl = await fal.storage.upload(zipFile);
-
-        // Save to database
-        const [upload] = await db.insert(uploads)
-          .values({
-            zipPath: zipPath,
-            falUrl: falUrl,
-            status: 'completed'
-          })
-          .returning();
-
-        // Cleanup processed files
-        await Promise.all(
-          processedFiles.map((filepath: string) => fs.unlink(filepath))
-        );
+        // In development, use mock URL
+        const falUrl = process.env.NODE_ENV === 'development'
+          ? `http://localhost:5000/mock/fal-ai/upload/${zipFileName}`
+          : `https://fal.ai/uploads/${zipFileName}`;
 
         res.json({
           success: true,
-          uploadId: upload.id,
-          falUrl: falUrl
+          uploadId: uploadRecord.id,
+          falUrl,
         });
-
       } catch (error) {
         console.error('Upload error:', error);
-        res.status(500).json({ error: 'Upload failed' });
+        res.status(500).json({ error: 'Failed to process upload' });
       }
     }
   );
+
+  // Training endpoint
+  app.post('/api/train', async (req: Request, res: Response) => {
+    try {
+      const { falUrl } = req.body;
+
+      if (!falUrl) {
+        return res.status(400).json({ error: 'FAL URL is required' });
+      }
+
+      let result;
+      if (process.env.NODE_ENV === 'development') {
+        // Use mock data in development
+        const response = await fetch('http://localhost:5000/mock/fal-ai/flux-lora-fast-training', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            input: {
+              steps: 1000,
+              create_masks: true,
+              images_data_url: falUrl,
+            },
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Mock FAL.ai API request failed');
+        }
+
+        result = await response.json();
+      } else {
+        // Import fal only in production
+        const { fal } = await import('@fal-ai/client');
+        fal.config({
+          credentials: process.env.FAL_AI_API_KEY,
+        });
+
+        result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
+          input: {
+            steps: 1000,
+            create_masks: true,
+            images_data_url: falUrl,
+          },
+          logs: true,
+          onQueueUpdate: (update) => {
+            if (update.status === "IN_PROGRESS") {
+              update.logs.map((log) => log.message).forEach(console.log);
+            }
+          },
+        });
+      }
+
+      res.json(result.data);
+    } catch (error) {
+      console.error('Training error:', error);
+      res.status(500).json({ error: 'Training failed' });
+    }
+  });
 }
