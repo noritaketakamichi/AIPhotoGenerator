@@ -66,18 +66,30 @@ app.use((req, res, next) => {
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (app.get("env") === "development") {
-    // Mount mock FAL.ai API server in development
-    app.use("/mock-fal", mockFalApi);
-    console.log("[express] Mock FAL.ai API server mounted at /mock-fal");
-    await setupVite(app, server);
+    try {
+      // Mount mock FAL.ai API server in development
+      app.use("/mock-fal", mockFalApi);
+      console.log("[express] Mock FAL.ai API server mounted at /mock-fal");
+      await setupVite(app, server);
+    } catch (error) {
+      console.error("[express] Error setting up development server:", error);
+      throw error;
+    }
   } else {
     serveStatic(app);
   }
 
   // ALWAYS serve the app on port 5000
   // this serves both the API and the client
-  const PORT = 5000;
+  const PORT = process.env.PORT || 5000;
   server.listen(PORT, "0.0.0.0", () => {
-    log(`serving on port ${PORT}`);
+    console.log(`[express] Server started successfully on port ${PORT}`);
+    console.log(`[express] Environment: ${app.get("env")}`);
+    if (app.get("env") === "development") {
+      console.log("[express] Mock FAL.ai API endpoints:");
+      console.log("  - POST /mock-fal/storage/upload");
+      console.log("  - POST /mock-fal/subscribe/fal-ai/flux-lora-fast-training");
+      console.log("  - GET /mock-fal/health");
+    }
   });
 })();
