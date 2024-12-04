@@ -17,7 +17,7 @@ if (!config.falAiApiKey) {
 } else {
   fal.config({
     credentials: config.falAiApiKey,
-    baseUrl: config.falAiBaseUrl
+    baseUrl: config.falAiBaseUrl // This matches our Config interface
   });
 }
 

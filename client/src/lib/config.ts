@@ -2,7 +2,6 @@ interface Config {
   falAiApiKey: string;
   falAiBaseUrl: string;
   aiTrainingApiEnv: string;
-  baseUrl?: string; // Optional property for FAL.ai client configuration
 }
 
 export const config: Config = {
