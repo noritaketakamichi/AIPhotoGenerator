@@ -67,6 +67,7 @@ export function PhotoUploader() {
         formData.append(`photo${index + 1}`, file);
       });
 
+      console.log(formData);
       const response = await fetch("/api/upload", {
         method: "POST",
         body: formData,
@@ -95,7 +96,7 @@ export function PhotoUploader() {
         console.log("Starting training process");
         const trainingData = await startTraining(data.falUrl);
         setTrainingResult(trainingData);
-        
+
         toast({
           title: "Training Complete",
           description: "AI model training finished successfully",
