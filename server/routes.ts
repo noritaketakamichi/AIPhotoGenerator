@@ -118,19 +118,38 @@ export function registerRoutes(app: express.Application) {
         credentials: process.env.FAL_AI_API_KEY,
       });
 
-      result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
-        input: {
-          steps: 1000,
-          create_masks: true,
-          images_data_url: falUrl,
-        },
-        logs: true,
-        onQueueUpdate: (update) => {
-          if (update.status === "IN_PROGRESS") {
-            update.logs.map((log) => log.message).forEach(console.log);
-          }
-        },
-      });
+      if (process.env.AI_TRAINING_API_ENV === "production") {
+        result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
+          input: {
+            steps: 1000,
+            create_masks: true,
+            images_data_url: falUrl,
+          },
+          logs: true,
+          onQueueUpdate: (update) => {
+            if (update.status === "IN_PROGRESS") {
+              update.logs.map((log) => log.message).forEach(console.log);
+            }
+          },
+        });
+      } else {
+        result = {
+          data: {
+            diffusers_lora_file: {
+              url: "https://v3.fal.media/files/penguin/MfKRMr7gp6TqNfttnWt84_pytorch_lora_weights.safetensors",
+              content_type: "application/octet-stream",
+              file_name: "pytorch_lora_weights.safetensors",
+              file_size: 89745224,
+            },
+            config_file: {
+              url: "https://v3.fal.media/files/lion/1_jzXYliDKoqpnsl2ZUap_config.json",
+              content_type: "application/octet-stream",
+              file_name: "config.json",
+              file_size: 452,
+            },
+          },
+        };
+      }
 
       res.json(result.data);
     } catch (error) {
