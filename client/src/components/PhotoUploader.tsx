@@ -95,6 +95,7 @@ export function PhotoUploader() {
       try {
         console.log("Starting training process");
         const trainingData = await startTraining(data.falUrl);
+        console.log(trainingData);
         setTrainingResult(trainingData);
 
         toast({

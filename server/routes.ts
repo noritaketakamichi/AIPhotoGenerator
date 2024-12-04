@@ -96,59 +96,52 @@ export function registerRoutes(app: express.Application) {
   app.post("/api/train", async (req: Request, res: Response) => {
     try {
       const { falUrl } = req.body;
+      console.log('Training API Environment:', process.env.AI_TRAINING_API_ENV);
+      console.log('Training request received for URL:', falUrl);
 
       if (!falUrl) {
         return res.status(400).json({ error: "FAL URL is required" });
       }
 
-      let result;
-      if (process.env.NODE_ENV === "development") {
-        // Use mock data in development
-        const response = await fetch(
-          "http://localhost:5000/mock/fal-ai/flux-lora-fast-training",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              input: {
-                steps: 1000,
-                create_masks: true,
-                images_data_url: falUrl,
-              },
-            }),
+      if (process.env.AI_TRAINING_API_ENV === 'mock') {
+        console.log('Using mock training response');
+        return res.json({
+          diffusers_lora_file: {
+            url: "https://v3.fal.media/files/penguin/MfKRMr7gp6TqNfttnWt84_pytorch_lora_weights.safetensors",
+            content_type: "application/octet-stream",
+            file_name: "pytorch_lora_weights.safetensors",
+            file_size: 89745224
           },
-        );
-
-        if (!response.ok) {
-          throw new Error("Mock FAL.ai API request failed");
-        }
-
-        result = await response.json();
-      } else {
-        // Import fal only in production
-        const { fal } = await import("@fal-ai/client");
-        fal.config({
-          credentials: process.env.FAL_AI_API_KEY,
-        });
-
-        result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
-          input: {
-            steps: 1000,
-            create_masks: true,
-            images_data_url: falUrl,
-          },
-          logs: true,
-          onQueueUpdate: (update) => {
-            if (update.status === "IN_PROGRESS") {
-              update.logs.map((log) => log.message).forEach(console.log);
-            }
-          },
+          config_file: {
+            url: "https://v3.fal.media/files/lion/1_jzXYliDKoqpnsl2ZUap_config.json",
+            content_type: "application/octet-stream",
+            file_name: "config.json",
+            file_size: 452
+          }
         });
       }
 
-      res.json(result.data);
+      // Production mode code remains unchanged
+      const { fal } = await import("@fal-ai/client");
+      fal.config({
+        credentials: process.env.FAL_AI_API_KEY,
+      });
+
+      const result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
+        input: {
+          steps: 1000,
+          create_masks: true,
+          images_data_url: falUrl,
+        },
+        logs: true,
+        onQueueUpdate: (update) => {
+          if (update.status === "IN_PROGRESS") {
+            console.log('Training progress:', update.logs);
+          }
+        },
+      });
+
+      return res.json(result.data);
     } catch (error) {
       console.error("Training error:", error);
       res.status(500).json({ error: "Training failed" });
