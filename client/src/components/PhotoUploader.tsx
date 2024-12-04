@@ -7,18 +7,6 @@ import { useToast } from "@/hooks/use-toast";
 import { PhotoPreview } from "./PhotoPreview";
 import { UploadStatus } from "./UploadStatus";
 import { Upload } from "lucide-react";
-import { fal } from "@fal-ai/client";
-
-import { config } from "@/lib/config";
-
-// Configure FAL client with API key and base URL
-if (!config.falAiApiKey) {
-  console.error('FAL.ai API key is not configured');
-} else {
-  fal.config({
-    credentials: config.falAiApiKey
-  });
-}
 
 export function PhotoUploader() {
   const [files, setFiles] = useState<File[]>([]);
@@ -27,29 +15,50 @@ export function PhotoUploader() {
   const [trainingResult, setTrainingResult] = useState<any>(null);
   const { toast } = useToast();
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    if (acceptedFiles.length + files.length > 4) {
-      toast({
-        title: "Too many files",
-        description: "Please upload exactly 4 photos",
-        variant: "destructive",
-      });
-      return;
-    }
+  const onDrop = useCallback(
+    (acceptedFiles: File[]) => {
+      if (acceptedFiles.length + files.length > 4) {
+        toast({
+          title: "Too many files",
+          description: "Please upload exactly 4 photos",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    const imageFiles = acceptedFiles.filter(file => 
-      file.type.startsWith('image/'));
-    
-    setFiles(prev => [...prev, ...imageFiles].slice(0, 4));
-  }, [files, toast]);
+      const imageFiles = acceptedFiles.filter((file) =>
+        file.type.startsWith("image/"),
+      );
+
+      setFiles((prev) => [...prev, ...imageFiles].slice(0, 4));
+    },
+    [files, toast],
+  );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'image/*': ['.jpeg', '.jpg', '.png', '.webp']
+      "image/*": [".jpeg", ".jpg", ".png", ".webp"],
     },
     maxSize: 5242880, // 5MB
   });
+
+  // New function to call the training endpoint
+  const startTraining = async (url: string) => {
+    const response = await fetch("/api/train", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ falUrl: url }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Training failed");
+    }
+
+    return response.json();
+  };
 
   const uploadMutation = useMutation({
     mutationFn: async (files: File[]) => {
@@ -58,16 +67,16 @@ export function PhotoUploader() {
         formData.append(`photo${index + 1}`, file);
       });
 
-      const response = await fetch('/api/upload', {
-        method: 'POST',
+      const response = await fetch("/api/upload", {
+        method: "POST",
         body: formData,
       });
 
       if (!response.ok) {
-        throw new Error('Upload failed');
+        throw new Error("Upload failed");
       }
 
-      const result = await response.json() as {
+      const result = (await response.json()) as {
         success: boolean;
         uploadId: number;
         falUrl: string;
@@ -81,36 +90,25 @@ export function PhotoUploader() {
         description: "Photos uploaded and ZIP created successfully",
       });
       setFalUrl(data.falUrl);
-      
+
       try {
-        const result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
-          input: {
-            steps: 1000,
-            create_masks: true,
-            images_data_url: data.falUrl
-          },
-          logs: true,
-          onQueueUpdate: (update) => {
-            if (update.status === "IN_PROGRESS") {
-              update.logs.map((log) => log.message).forEach(console.log);
-            }
-          },
-        });
+        console.log("Starting training process");
+        const trainingData = await startTraining(data.falUrl);
+        setTrainingResult(trainingData);
         
-        setTrainingResult(result.data);
         toast({
           title: "Training Complete",
           description: "AI model training finished successfully",
         });
       } catch (error) {
-        console.error('Training error:', error);
+        console.error("Training error:", error);
         toast({
           title: "Training Failed",
           description: "Failed to train AI model",
           variant: "destructive",
         });
       }
-      
+
       setFiles([]);
       setUploadProgress(0);
     },
@@ -120,7 +118,7 @@ export function PhotoUploader() {
         description: "Failed to upload photos",
         variant: "destructive",
       });
-    }
+    },
   });
 
   const handleUpload = () => {
@@ -141,7 +139,7 @@ export function PhotoUploader() {
       <div
         {...getRootProps()}
         className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-          ${isDragActive ? 'border-primary bg-primary/5' : 'border-border'}`}
+          ${isDragActive ? "border-primary bg-primary/5" : "border-border"}`}
       >
         <input {...getInputProps()} />
         <div className="space-y-2">
@@ -163,7 +161,7 @@ export function PhotoUploader() {
                 key={index}
                 file={file}
                 onRemove={() => {
-                  setFiles(prev => prev.filter((_, i) => i !== index));
+                  setFiles((prev) => prev.filter((_, i) => i !== index));
                 }}
               />
             ))}
@@ -173,13 +171,13 @@ export function PhotoUploader() {
             {uploadMutation.isPending && (
               <Progress value={uploadProgress} className="w-full" />
             )}
-            
+
             <div className="flex justify-between items-center">
               <UploadStatus
                 filesCount={files.length}
                 isUploading={uploadMutation.isPending}
               />
-              
+
               <Button
                 onClick={handleUpload}
                 disabled={files.length !== 4 || uploadMutation.isPending}
@@ -194,7 +192,7 @@ export function PhotoUploader() {
       {falUrl && (
         <div className="mt-4 p-4 border rounded-lg bg-muted">
           <p className="font-medium">ZIP File URL:</p>
-          <a 
+          <a
             href={falUrl}
             target="_blank"
             rel="noopener noreferrer"
@@ -208,7 +206,7 @@ export function PhotoUploader() {
       {trainingResult?.diffusers_lora_file?.url && (
         <div className="mt-4 p-4 border rounded-lg bg-muted">
           <p className="font-medium">Model File URL:</p>
-          <a 
+          <a
             href={trainingResult.diffusers_lora_file.url}
             target="_blank"
             rel="noopener noreferrer"

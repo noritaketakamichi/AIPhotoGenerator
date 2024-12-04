@@ -1,18 +1,8 @@
+// Configuration types and validation
 interface Config {
-  falAiApiKey: string;
+  // Add any frontend-specific configuration here
 }
 
 export const config: Config = {
-  falAiApiKey: import.meta.env.VITE_FAL_AI_API_KEY || ''
+  // Add frontend-specific configuration values here
 };
-
-// Validate required environment variables
-const requiredEnvVars = {
-  'VITE_FAL_AI_API_KEY': config.falAiApiKey,
-};
-
-Object.entries(requiredEnvVars).forEach(([key, value]) => {
-  if (!value) {
-    console.error(`Missing required environment variable: ${key}`);
-  }
-});
