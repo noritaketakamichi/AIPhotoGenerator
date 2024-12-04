@@ -2,9 +2,30 @@ import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 
+function logMockServer(message: string, payload?: any) {
+  const timestamp = new Date().toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+  
+  const logMessage = payload
+    ? `[Mock FAL.ai] [${timestamp}] - ${message} - Payload: ${JSON.stringify(payload)}`
+    : `[Mock FAL.ai] [${timestamp}] - ${message}`;
+  
+  console.log(logMessage);
+}
+
 const mockServer = express();
 mockServer.use(cors());
 mockServer.use(bodyParser.json());
+
+// Log all incoming requests
+mockServer.use((req, res, next) => {
+  logMockServer(`Incoming ${req.method} request to ${req.path}`, req.body);
+  next();
+});
 
 // Mock storage for uploaded files
 const mockStorage = new Map<string, Buffer>();
@@ -12,22 +33,25 @@ const mockStorage = new Map<string, Buffer>();
 // Mock FAL.ai storage endpoint
 mockServer.post('/storage/upload', (req, res) => {
   const fileId = `mock-file-${Date.now()}`;
-  // In a real scenario, we'd handle file upload. For mock, we'll just return a URL
   const mockUrl = `http://localhost:5001/storage/${fileId}`;
   
-  res.json({
+  const response = {
     url: mockUrl,
     id: fileId
-  });
+  };
+  
+  logMockServer('Storage upload completed', response);
+  res.json(response);
 });
 
 // Mock FAL.ai model endpoint
 mockServer.post('/model/train', (req, res) => {
   const modelId = `mock-model-${Date.now()}`;
+  logMockServer('Starting model training', { modelId, request: req.body });
   
   // Simulate training progress
   setTimeout(() => {
-    res.json({
+    const response = {
       id: modelId,
       status: 'completed',
       result: {
@@ -44,7 +68,10 @@ mockServer.post('/model/train', (req, res) => {
           file_size: 452
         }
       }
-    });
+    };
+    
+    logMockServer('Model training completed', response);
+    res.json(response);
   }, 2000); // Simulate 2-second training time
 });
 

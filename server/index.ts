@@ -65,8 +65,15 @@ app.use((req, res, next) => {
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (app.get("env") === "development") {
-    // Start mock FAL.ai server in development
-    await startMockServer(5001);
+    const aiTrainingApiEnv = process.env.AI_TRAINING_API_ENV || 'production';
+    log(`AI Training API Environment: ${aiTrainingApiEnv}`);
+    
+    if (aiTrainingApiEnv === 'mock') {
+      // Start mock FAL.ai server only in mock environment
+      await startMockServer(5001);
+      log('Mock FAL.ai server initialized');
+    }
+    
     await setupVite(app, server);
   } else {
     serveStatic(app);
