@@ -19,25 +19,68 @@ const mockResponses = {
       file_size: 452
     },
     training_logs: [
-      { timestamp: Date.now(), message: "Starting training process" },
-      { timestamp: Date.now() + 500, message: "Loading dataset" },
-      { timestamp: Date.now() + 1000, message: "Processing images" },
-      { timestamp: Date.now() + 1500, message: "Training model" },
-      { timestamp: Date.now() + 2000, message: "Training completed" }
+      { timestamp: Date.now(), message: "Starting training process", level: "info" },
+      { timestamp: Date.now() + 500, message: "Loading dataset", level: "info" },
+      { timestamp: Date.now() + 1000, message: "Processing images", level: "info" },
+      { timestamp: Date.now() + 1500, message: "Training model", level: "info" },
+      { timestamp: Date.now() + 2000, message: "Training completed", level: "success" }
     ]
+  },
+  errors: {
+    invalidInput: {
+      error: 'Invalid input parameters',
+      code: 'INVALID_INPUT',
+      status: 400
+    },
+    unauthorized: {
+      error: 'Unauthorized request',
+      code: 'UNAUTHORIZED',
+      status: 401
+    },
+    rateLimited: {
+      error: 'Rate limit exceeded',
+      code: 'RATE_LIMITED',
+      status: 429
+    }
   }
+};
+
+// Simulate random errors (10% chance)
+const shouldSimulateError = () => Math.random() < 0.1;
+
+// Get random error from errors object
+const getRandomError = () => {
+  const errors = Object.values(mockResponses.errors);
+  return errors[Math.floor(Math.random() * errors.length)];
 };
 
 // Mock FAL.ai training endpoint with realistic behavior
 router.post('/flux-lora-fast-training', (req: Request, res: Response) => {
+  // Check for API key in headers
+  const apiKey = req.headers['authorization'];
+  if (!apiKey || !apiKey.startsWith('Bearer ')) {
+    return res.status(401).json(mockResponses.errors.unauthorized);
+  }
+
   const { input } = req.body;
   
-  // Validate input parameters
+  // Enhanced input validation
   if (!input || !input.images_data_url) {
+    return res.status(400).json(mockResponses.errors.invalidInput);
+  }
+
+  // Validate required training parameters
+  if (!input.steps || input.steps < 100 || input.steps > 2000) {
     return res.status(400).json({
-      error: 'Invalid input parameters',
-      message: 'Missing required field: images_data_url'
+      ...mockResponses.errors.invalidInput,
+      message: 'Steps must be between 100 and 2000'
     });
+  }
+
+  // Simulate random errors
+  if (shouldSimulateError()) {
+    const error = getRandomError();
+    return res.status(error.status).json(error);
   }
 
   // Simulate processing delay and send progress updates
