@@ -52,6 +52,8 @@ export function registerRoutes(app: express.Application) {
           [fieldname: string]: Express.Multer.File[];
         };
 
+        console.log("files", files);
+
         if (!files || Object.keys(files).length !== 4) {
           return res
             .status(400)
@@ -64,7 +66,11 @@ export function registerRoutes(app: express.Application) {
         const zipFileName = `archive-${Date.now()}.zip`;
         const zipPath = path.join(process.cwd(), "uploads", zipFileName);
 
-        // Create ZIP archive
+        // Initialize fal client
+        fal.config({
+          credentials: process.env.FAL_AI_API_KEY,
+        });
+
         await createZipArchive(fileNames, zipPath);
 
         // Save upload record to database
@@ -77,16 +83,8 @@ export function registerRoutes(app: express.Application) {
           })
           .returning();
 
-        // Read the ZIP file and upload to FAL.ai
         const zipFile = await readFile(zipPath);
         const file = new Blob([zipFile], { type: "application/zip" });
-
-        // Configure FAL.ai client
-        fal.config({
-          credentials: process.env.FAL_AI_API_KEY,
-        });
-
-        // Upload to FAL.ai storage
         const falUrl = await fal.storage.upload(file);
 
         res.json({
@@ -104,52 +102,56 @@ export function registerRoutes(app: express.Application) {
   // Training endpoint
   app.post("/api/train", async (req: Request, res: Response) => {
     try {
+      console.log("train endpoint called");
       const { falUrl } = req.body;
-      console.log('Training API Environment:', process.env.AI_TRAINING_API_ENV);
-      console.log('Training request received for URL:', falUrl);
+
+      console.log(falUrl);
 
       if (!falUrl) {
         return res.status(400).json({ error: "FAL URL is required" });
       }
 
-      // Configure FAL.ai client
+      let result;
+      // Always use FAL.ai
+      const { fal } = await import("@fal-ai/client");
       fal.config({
         credentials: process.env.FAL_AI_API_KEY,
       });
 
-      if (process.env.AI_TRAINING_API_ENV === 'mock') {
-        console.log('Using mock training response');
+      if (process.env.AI_TRAINING_API_ENV === "mock") {
         return res.json({
-          diffusers_lora_file: {
-            url: "https://v3.fal.media/files/penguin/MfKRMr7gp6TqNfttnWt84_pytorch_lora_weights.safetensors",
-            content_type: "application/octet-stream",
-            file_name: "pytorch_lora_weights.safetensors",
-            file_size: 89745224
-          },
-          config_file: {
-            url: "https://v3.fal.media/files/lion/1_jzXYliDKoqpnsl2ZUap_config.json",
-            content_type: "application/octet-stream",
-            file_name: "config.json",
-            file_size: 452
+          data: {
+            diffusers_lora_file: {
+              url: "https://v3.fal.media/files/penguin/MfKRMr7gp6TqNfttnWt84_pytorch_lora_weights.safetensors",
+              content_type: "application/octet-stream",
+              file_name: "pytorch_lora_weights.safetensors",
+              file_size: 89745224
+            },
+            config_file: {
+              url: "https://v3.fal.media/files/lion/1_jzXYliDKoqpnsl2ZUap_config.json",
+              content_type: "application/octet-stream",
+              file_name: "config.json",
+              file_size: 452
+            }
           }
+        });
+      } else {
+        result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
+          input: {
+            steps: 1000,
+            create_masks: true,
+            images_data_url: falUrl,
+          },
+          logs: true,
+          onQueueUpdate: (update) => {
+            if (update.status === "IN_PROGRESS") {
+              update.logs.map((log) => log.message).forEach(console.log);
+            }
+          },
         });
       }
 
-      const result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
-        input: {
-          steps: 1000,
-          create_masks: true,
-          images_data_url: falUrl,
-        },
-        logs: true,
-        onQueueUpdate: (update) => {
-          if (update.status === "IN_PROGRESS") {
-            console.log('Training progress:', update.logs);
-          }
-        },
-      });
-
-      return res.json(result.data);
+      res.json(result.data);
     } catch (error) {
       console.error("Training error:", error);
       res.status(500).json({ error: "Training failed" });
