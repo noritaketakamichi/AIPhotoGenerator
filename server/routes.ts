@@ -74,11 +74,6 @@ export function registerRoutes(app: express.Application) {
         const zipFileName = `archive-${Date.now()}.zip`;
         const zipPath = path.join(process.cwd(), "uploads", zipFileName);
 
-        // Initialize fal client
-        fal.config({
-          credentials: process.env.FAL_AI_API_KEY,
-        });
-
         await createZipArchive(fileNames, zipPath);
 
         // Save upload record to database
@@ -93,7 +88,18 @@ export function registerRoutes(app: express.Application) {
 
         const zipFile = await readFile(zipPath);
         const file = new Blob([zipFile], { type: "application/zip" });
-        const falUrl = await fal.storage.upload(file);
+        
+        let falUrl: string;
+        if (process.env.AI_TRAINING_API_ENV === "production") {
+          fal.config({
+            credentials: process.env.FAL_AI_API_KEY,
+          });
+          falUrl = await fal.storage.upload(file);
+        } else {
+          // Use mock API in development
+          const { mockFalApi } = await import('./mocks/falApi');
+          falUrl = await mockFalApi.storage.upload(file);
+        }
 
         res.json({
           success: true,
@@ -127,6 +133,7 @@ export function registerRoutes(app: express.Application) {
         credentials: process.env.FAL_AI_API_KEY,
       });
 
+      // Import and use mock API in non-production environments
       if (process.env.AI_TRAINING_API_ENV === "production") {
         result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
           input: {
@@ -142,22 +149,15 @@ export function registerRoutes(app: express.Application) {
           },
         });
       } else {
-        result = {
-          data: {
-            diffusers_lora_file: {
-              url: "https://v3.fal.media/files/penguin/MfKRMr7gp6TqNfttnWt84_pytorch_lora_weights.safetensors",
-              content_type: "application/octet-stream",
-              file_name: "pytorch_lora_weights.safetensors",
-              file_size: 89745224,
-            },
-            config_file: {
-              url: "https://v3.fal.media/files/lion/1_jzXYliDKoqpnsl2ZUap_config.json",
-              content_type: "application/octet-stream",
-              file_name: "config.json",
-              file_size: 452,
-            },
-          },
-        };
+        // Use mock API implementation
+        const { mockFalApi } = await import('./mocks/falApi');
+        result = await mockFalApi.subscribe("fal-ai/flux-lora-fast-training", {
+          input: {
+            steps: 1000,
+            create_masks: true,
+            images_data_url: falUrl,
+          }
+        });
       }
 
       res.json(result.data);
