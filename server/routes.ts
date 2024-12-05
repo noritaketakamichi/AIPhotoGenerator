@@ -2,20 +2,18 @@ import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import express, { Request, Response } from "express";
+import multer from "multer";
+import { mkdir, readFile } from "fs/promises";
+import { db } from "./db";
+import { uploads } from "./db/schema";
+import { createZipArchive } from "./utils/archive";
+import { fal } from "@fal-ai/client";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
-
-import express, { Request, Response } from "express";
-import multer from "multer";
-import { mkdir, readFile } from "fs/promises";
-import path from "path";
-import { db } from "./db";
-import { uploads } from "./db/schema";
-import { createZipArchive } from "./utils/archive";
-import { fal } from "@fal-ai/client";
 
 const storage = multer.diskStorage({
   destination: async function (req, file, cb) {
