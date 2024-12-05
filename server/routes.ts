@@ -131,7 +131,6 @@ export function registerRoutes(app: express.Application) {
       }
 
       let result;
-      // Always use FAL.ai
       const { fal } = await import("@fal-ai/client");
       fal.config({
         credentials: process.env.FAL_AI_API_KEY,
@@ -175,6 +174,60 @@ export function registerRoutes(app: express.Application) {
     } catch (error) {
       console.error("Training error:", error);
       res.status(500).json({ error: "Training failed" });
+    }
+  });
+
+  // Generate image endpoint
+  app.post("/api/generate", async (req: Request, res: Response) => {
+    try {
+      const { loraUrl, prompt } = req.body;
+
+      if (!loraUrl || !prompt) {
+        return res.status(400).json({ error: "LoRA URL and prompt are required" });
+      }
+
+      const { fal } = await import("@fal-ai/client");
+      fal.config({
+        credentials: process.env.FAL_AI_API_KEY,
+      });
+
+      if (process.env.AI_TRAINING_API_ENV === "production") {
+        const result = await fal.subscribe("fal-ai/flux-lora", {
+          input: {
+            loras: [
+              {
+                path: loraUrl,
+                scale: 1,
+              },
+            ],
+            prompt: prompt,
+            embeddings: [],
+            image_size: "square_hd",
+            model_name: null,
+            enable_safety_checker: true,
+          },
+          logs: true,
+          onQueueUpdate: (update) => {
+            if (update.status === "IN_PROGRESS") {
+              update.logs.map((log) => log.message).forEach(console.log);
+            }
+          },
+        });
+        res.json(result.data);
+      } else {
+        // Mock response for development
+        res.json({
+          images: [
+            {
+              url: "https://v3.fal.media/files/mock/generated_image.png",
+              file_name: "generated_image.png",
+            },
+          ],
+        });
+      }
+    } catch (error) {
+      console.error("Generation error:", error);
+      res.status(500).json({ error: "Image generation failed" });
     }
   });
 }

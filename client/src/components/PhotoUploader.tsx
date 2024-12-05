@@ -14,6 +14,7 @@ export function PhotoUploader() {
   const [falUrl, setFalUrl] = useState<string | null>(null);
   const [trainingResult, setTrainingResult] = useState<any>(null);
   const [prompt, setPrompt] = useState<string>("");
+  const [generatedImages, setGeneratedImages] = useState<Array<{ url: string; file_name: string }>>([]);
   const { toast } = useToast();
 
   const onDrop = useCallback(
@@ -241,14 +242,78 @@ export function PhotoUploader() {
             />
             <button
               className="mt-2 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90"
-              onClick={() => {
-                console.log('Prompt submitted:', prompt);
-                // Future implementation will go here
+              onClick={async () => {
+                try {
+                  if (!trainingResult?.diffusers_lora_file?.url) {
+                    toast({
+                      title: "Error",
+                      description: "Training result not available",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+
+                  const response = await fetch("/api/generate", {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                      loraUrl: trainingResult.diffusers_lora_file.url,
+                      prompt: prompt,
+                    }),
+                  });
+
+                  if (!response.ok) {
+                    throw new Error("Generation failed");
+                  }
+
+                  const result = await response.json();
+                  if (result.images && result.images.length > 0) {
+                    setGeneratedImages(result.images);
+                  }
+
+                  toast({
+                    title: "Success",
+                    description: "Image generated successfully",
+                  });
+                } catch (error) {
+                  console.error("Generation error:", error);
+                  toast({
+                    title: "Error",
+                    description: "Failed to generate image",
+                    variant: "destructive",
+                  });
+                }
               }}
             >
               Submit
             </button>
           </div>
+          {generatedImages.length > 0 && (
+            <div className="mt-4 space-y-4">
+              <h3 className="text-lg font-semibold">Generated Images</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {generatedImages.map((image, index) => (
+                  <div key={index} className="border rounded-lg p-2">
+                    <img
+                      src={image.url}
+                      alt={`Generated ${index + 1}`}
+                      className="w-full h-auto rounded-lg"
+                    />
+                    <a
+                      href={image.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 text-primary hover:underline block text-center"
+                    >
+                      Open Image
+                    </a>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
