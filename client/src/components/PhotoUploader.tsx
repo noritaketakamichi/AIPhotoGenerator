@@ -193,42 +193,7 @@ export function PhotoUploader() {
         </div>
       )}
 
-      {falUrl && (
-        <div className="mt-4 p-4 border rounded-lg bg-muted">
-          <p className="font-medium">ZIP File URL:</p>
-          <a
-            href={falUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary hover:underline break-all"
-          >
-            {falUrl}
-          </a>
-        </div>
-      )}
-
-      {trainingResult?.diffusers_lora_file?.url && (
-        <div className="mt-4 p-4 border rounded-lg bg-muted">
-          <p className="font-medium">Model File URL:</p>
-          <a
-            href={trainingResult.diffusers_lora_file.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary hover:underline break-all"
-          >
-            {trainingResult.diffusers_lora_file.url}
-          </a>
-        </div>
-      )}
-
-      {trainingResult && (
-        <div className="mt-4 p-4 border rounded-lg bg-muted">
-          <p className="font-medium">Training Results:</p>
-          <pre className="mt-2 p-2 bg-background rounded overflow-auto">
-            {JSON.stringify(trainingResult, null, 2)}
-          </pre>
-        </div>
-      )}
+      
 
       {trainingResult && (
         <div className="mt-4 space-y-4">

@@ -183,7 +183,9 @@ export function registerRoutes(app: express.Application) {
       const { loraUrl, prompt } = req.body;
 
       if (!loraUrl || !prompt) {
-        return res.status(400).json({ error: "LoRA URL and prompt are required" });
+        return res
+          .status(400)
+          .json({ error: "LoRA URL and prompt are required" });
       }
 
       const { fal } = await import("@fal-ai/client");
@@ -191,7 +193,7 @@ export function registerRoutes(app: express.Application) {
         credentials: process.env.FAL_AI_API_KEY,
       });
 
-      if (process.env.AI_TRAINING_API_ENV === "production") {
+      if (process.env.AI_GENERATION_API_ENV === "production") {
         const result = await fal.subscribe("fal-ai/flux-lora", {
           input: {
             loras: [
