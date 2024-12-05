@@ -88,17 +88,16 @@ export function registerRoutes(app: express.Application) {
 
         const zipFile = await readFile(zipPath);
         const file = new Blob([zipFile], { type: "application/zip" });
-        
-        let falUrl: string;
+
+        // Initialize fal client and handle upload based on environment
         if (process.env.AI_TRAINING_API_ENV === "production") {
           fal.config({
             credentials: process.env.FAL_AI_API_KEY,
           });
           falUrl = await fal.storage.upload(file);
         } else {
-          // Use mock API in development
-          const { mockFalApi } = await import('./mocks/falApi');
-          falUrl = await mockFalApi.storage.upload(file);
+          // Mock URL for development environment
+          falUrl = `https://v3.fal.media/files/mock/${Buffer.from(Math.random().toString()).toString('hex').slice(0, 8)}_${Date.now()}.zip`;
         }
 
         res.json({
@@ -133,7 +132,6 @@ export function registerRoutes(app: express.Application) {
         credentials: process.env.FAL_AI_API_KEY,
       });
 
-      // Import and use mock API in non-production environments
       if (process.env.AI_TRAINING_API_ENV === "production") {
         result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
           input: {
@@ -149,17 +147,24 @@ export function registerRoutes(app: express.Application) {
           },
         });
       } else {
-        // Use mock API implementation
-        const { mockFalApi } = await import('./mocks/falApi');
-        result = await mockFalApi.subscribe("fal-ai/flux-lora-fast-training", {
-          input: {
-            steps: 1000,
-            create_masks: true,
-            images_data_url: falUrl,
+        // Mock response for development environment
+        result = {
+          data: {
+            diffusers_lora_file: {
+              url: "https://v3.fal.media/files/mock/model_weights.safetensors",
+              content_type: "application/octet-stream",
+              file_name: "model_weights.safetensors",
+              file_size: 89745224,
+            },
+            config_file: {
+              url: "https://v3.fal.media/files/mock/config.json",
+              content_type: "application/octet-stream",
+              file_name: "config.json",
+              file_size: 452,
+            }
           }
-        });
-      }
-
+        };
+      }nsole.log(result);
       res.json(result.data);
     } catch (error) {
       console.error("Training error:", error);
