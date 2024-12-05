@@ -19,6 +19,9 @@ passport.use(
           return done(null, false, { message: "Incorrect email or password." });
         }
 
+        if (!user.password) {
+          return done(null, false, { message: "Incorrect email or password." });
+        }
         const isValid = await bcrypt.compare(password, user.password);
 
         if (!isValid) {
