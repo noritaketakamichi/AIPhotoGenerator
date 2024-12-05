@@ -4,7 +4,7 @@ import { fileURLToPath } from "url";
 import { dirname } from "path";
 import express, { Request, Response } from "express";
 import multer from "multer";
-import { mkdir, readFile, unlink } from "fs/promises";
+import { mkdir, readFile, unlink, readdir } from "fs/promises";
 import { db } from "./db";
 import { uploads } from "./db/schema";
 import { createZipArchive } from "./utils/archive";
@@ -180,6 +180,34 @@ export function registerRoutes(app: express.Application) {
         };
       }
       console.log(result);
+
+      // Delete all remaining files in the uploads directory
+      try {
+        const uploadDir = path.join(process.cwd(), "uploads");
+        const files = await readdir(uploadDir);
+        
+        // Log files before deletion
+        console.log("Files to be deleted:", files);
+        
+        // Delete files one by one and wait for each deletion
+        for (const file of files) {
+          const filePath = path.join(uploadDir, file);
+          try {
+            await unlink(filePath);
+            console.log(`Successfully deleted: ${file}`);
+          } catch (err) {
+            console.error(`Failed to delete file ${file}:`, err);
+          }
+        }
+        
+        // Verify deletion
+        const remainingFiles = await readdir(uploadDir);
+        console.log("Remaining files after deletion:", remainingFiles);
+        
+      } catch (err) {
+        console.error("Error while cleaning uploads directory:", err);
+      }
+
       res.json(result.data);
     } catch (error) {
       console.error("Training error:", error);
