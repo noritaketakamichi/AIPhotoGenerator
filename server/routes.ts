@@ -100,7 +100,9 @@ export function registerRoutes(app: express.Application) {
           fal.config({
             credentials: process.env.FAL_AI_API_KEY,
           });
-          falUrl = await fal.storage.upload(file);
+          falUrl = process.env.NODE_ENV === 'development' 
+            ? `https://v3.fal.mock.ai/files/${Buffer.from(Math.random().toString()).toString("hex").slice(0, 8)}_${Date.now()}.zip`
+            : await fal.storage.upload(file);
         } else {
           // Mock URL for development environment
           falUrl = `https://v3.fal.media/files/mock/${Buffer.from(Math.random().toString()).toString("hex").slice(0, 8)}_${Date.now()}.zip`;
