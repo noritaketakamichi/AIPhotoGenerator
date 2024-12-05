@@ -1,3 +1,13 @@
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+dotenv.config({ path: path.join(__dirname, '../.env') });
+
 import express, { Request, Response } from "express";
 import multer from "multer";
 import { mkdir, readFile } from "fs/promises";
@@ -103,6 +113,8 @@ export function registerRoutes(app: express.Application) {
   app.post("/api/train", async (req: Request, res: Response) => {
     try {
       console.log("train endpoint called");
+      console.log(process.env.AI_TRAINING_API_ENV);
+
       const { falUrl } = req.body;
 
       console.log(falUrl);
