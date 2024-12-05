@@ -4,7 +4,7 @@ import { fileURLToPath } from "url";
 import { dirname } from "path";
 import express, { Request, Response } from "express";
 import multer from "multer";
-import { mkdir, readFile } from "fs/promises";
+import { mkdir, readFile, unlink, readdir } from "fs/promises";
 import { db } from "./db";
 import { uploads } from "./db/schema";
 import { createZipArchive } from "./utils/archive";
@@ -105,6 +105,16 @@ export function registerRoutes(app: express.Application) {
           falUrl = `https://v3.fal.media/files/mock/${Buffer.from(Math.random().toString()).toString("hex").slice(0, 8)}_${Date.now()}.zip`;
         }
 
+        // Delete all uploaded files and the ZIP file
+        await Promise.all([
+          ...fileNames.map(fileName => 
+            unlink(path.join(process.cwd(), "uploads", fileName))
+              .catch(err => console.error(`Failed to delete file ${fileName}:`, err))
+          ),
+          unlink(zipPath)
+            .catch(err => console.error(`Failed to delete ZIP file:`, err))
+        ]);
+
         res.json({
           success: true,
           uploadId: uploadRecord.id,
@@ -131,7 +141,6 @@ export function registerRoutes(app: express.Application) {
       }
 
       let result;
-      // Always use FAL.ai
       const { fal } = await import("@fal-ai/client");
       fal.config({
         credentials: process.env.FAL_AI_API_KEY,
@@ -171,10 +180,94 @@ export function registerRoutes(app: express.Application) {
         };
       }
       console.log(result);
+
+      // Delete all remaining files in the uploads directory
+      try {
+        const uploadDir = path.join(process.cwd(), "uploads");
+        const files = await readdir(uploadDir);
+        
+        // Log files before deletion
+        console.log("Files to be deleted:", files);
+        
+        // Delete files one by one and wait for each deletion
+        for (const file of files) {
+          const filePath = path.join(uploadDir, file);
+          try {
+            await unlink(filePath);
+            console.log(`Successfully deleted: ${file}`);
+          } catch (err) {
+            console.error(`Failed to delete file ${file}:`, err);
+          }
+        }
+        
+        // Verify deletion
+        const remainingFiles = await readdir(uploadDir);
+        console.log("Remaining files after deletion:", remainingFiles);
+        
+      } catch (err) {
+        console.error("Error while cleaning uploads directory:", err);
+      }
+
       res.json(result.data);
     } catch (error) {
       console.error("Training error:", error);
       res.status(500).json({ error: "Training failed" });
+    }
+  });
+
+  // Generate image endpoint
+  app.post("/api/generate", async (req: Request, res: Response) => {
+    try {
+      const { loraUrl, prompt } = req.body;
+
+      if (!loraUrl || !prompt) {
+        return res
+          .status(400)
+          .json({ error: "LoRA URL and prompt are required" });
+      }
+
+      const { fal } = await import("@fal-ai/client");
+      fal.config({
+        credentials: process.env.FAL_AI_API_KEY,
+      });
+
+      if (process.env.AI_GENERATION_API_ENV === "production") {
+        const result = await fal.subscribe("fal-ai/flux-lora", {
+          input: {
+            loras: [
+              {
+                path: loraUrl,
+                scale: 1,
+              },
+            ],
+            prompt: prompt,
+            embeddings: [],
+            image_size: "square_hd",
+            model_name: null,
+            enable_safety_checker: true,
+          },
+          logs: true,
+          onQueueUpdate: (update) => {
+            if (update.status === "IN_PROGRESS") {
+              update.logs.map((log) => log.message).forEach(console.log);
+            }
+          },
+        });
+        res.json(result.data);
+      } else {
+        // Mock response for development
+        res.json({
+          images: [
+            {
+              url: "https://v3.fal.media/files/mock/generated_image.png",
+              file_name: "generated_image.png",
+            },
+          ],
+        });
+      }
+    } catch (error) {
+      console.error("Generation error:", error);
+      res.status(500).json({ error: "Image generation failed" });
     }
   });
 }
