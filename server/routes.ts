@@ -244,7 +244,6 @@ export function registerRoutes(app: express.Application) {
             prompt: prompt,
             // embeddings property removed as it's not part of FluxLoraInput type
             image_size: "square_hd",
-            model_name: null,
             enable_safety_checker: true,
           },
           logs: true,
