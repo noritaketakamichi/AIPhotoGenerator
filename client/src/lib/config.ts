@@ -1,8 +1,13 @@
 // Configuration types and validation
 interface Config {
-  // Add any frontend-specific configuration here
+  env: {
+    NODE_ENV: string;
+    // Add other environment variables here as needed
+  };
 }
 
 export const config: Config = {
-  // Add frontend-specific configuration values here
+  env: {
+    NODE_ENV: import.meta.env.NODE_ENV || 'development',
+  }
 };
