@@ -74,10 +74,7 @@ export function registerRoutes(app: express.Application) {
         const zipFileName = `archive-${Date.now()}.zip`;
         const zipPath = path.join(process.cwd(), "uploads", zipFileName);
 
-        // Initialize fal client
-        fal.config({
-          credentials: process.env.FAL_AI_API_KEY,
-        });
+        console.log("createZipArchive will be called");
 
         await createZipArchive(fileNames, zipPath);
 
@@ -93,7 +90,20 @@ export function registerRoutes(app: express.Application) {
 
         const zipFile = await readFile(zipPath);
         const file = new Blob([zipFile], { type: "application/zip" });
-        const falUrl = await fal.storage.upload(file);
+
+        console.log("file was created");
+
+        let falUrl: string;
+        // Initialize fal client and handle upload based on environment
+        if (process.env.AI_TRAINING_API_ENV === "production") {
+          fal.config({
+            credentials: process.env.FAL_AI_API_KEY,
+          });
+          falUrl = await fal.storage.upload(file);
+        } else {
+          // Mock URL for development environment
+          falUrl = `https://v3.fal.media/files/mock/${Buffer.from(Math.random().toString()).toString("hex").slice(0, 8)}_${Date.now()}.zip`;
+        }
 
         res.json({
           success: true,
@@ -142,6 +152,7 @@ export function registerRoutes(app: express.Application) {
           },
         });
       } else {
+        // Mock response for development environment
         result = {
           data: {
             diffusers_lora_file: {
@@ -159,7 +170,7 @@ export function registerRoutes(app: express.Application) {
           },
         };
       }
-
+      console.log(result);
       res.json(result.data);
     } catch (error) {
       console.error("Training error:", error);
