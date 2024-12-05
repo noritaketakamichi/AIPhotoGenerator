@@ -277,14 +277,39 @@ export function PhotoUploader() {
                       alt={`Generated ${index + 1}`}
                       className="w-full h-auto rounded-lg"
                     />
-                    <a
-                      href={image.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-2 text-primary hover:underline block text-center"
-                    >
-                      Open Image
-                    </a>
+                    <div className="flex justify-between mt-2 px-2">
+                      <a
+                        href={image.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        Open Image
+                      </a>
+                      <a
+                        href={image.url}
+                        download={`generated-${index + 1}.png`}
+                        className="text-primary hover:underline"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          // Fetch the image and create a download link
+                          fetch(image.url)
+                            .then(response => response.blob())
+                            .then(blob => {
+                              const url = window.URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = `generated-${index + 1}.png`;
+                              document.body.appendChild(a);
+                              a.click();
+                              window.URL.revokeObjectURL(url);
+                              document.body.removeChild(a);
+                            });
+                        }}
+                      >
+                        Download
+                      </a>
+                    </div>
                   </div>
                 ))}
               </div>
