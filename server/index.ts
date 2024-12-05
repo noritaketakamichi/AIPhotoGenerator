@@ -12,6 +12,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic } from "./vite";
 import { createServer } from "http";
+import { mockFalApiRoutes } from "./mocks/falApi";
 
 
 function log(message: string) {
@@ -60,6 +61,11 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Enable mock FAL API routes in development
+  if (process.env.NODE_ENV === 'development') {
+    mockFalApiRoutes(app);
+  }
+  
   registerRoutes(app);
   const server = createServer(app);
 

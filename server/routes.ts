@@ -45,6 +45,17 @@ const upload = multer({
 });
 
 export function registerRoutes(app: express.Application) {
+  // Serve static files from the client build directory
+  app.use(express.static(path.join(__dirname, '../client/dist')));
+  
+  // Handle client-side routing
+  app.get(['/login', '/'], (req, res, next) => {
+    if (req.url.startsWith('/api')) {
+      next();
+      return;
+    }
+    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+  });
   // File upload endpoint
   app.post(
     "/api/upload",
