@@ -74,6 +74,8 @@ export function registerRoutes(app: express.Application) {
         const zipFileName = `archive-${Date.now()}.zip`;
         const zipPath = path.join(process.cwd(), "uploads", zipFileName);
 
+        console.log("createZipArchive will be called");
+
         await createZipArchive(fileNames, zipPath);
 
         // Save upload record to database
@@ -89,6 +91,9 @@ export function registerRoutes(app: express.Application) {
         const zipFile = await readFile(zipPath);
         const file = new Blob([zipFile], { type: "application/zip" });
 
+        console.log("file was created");
+        
+        let falUrl: string;
         // Initialize fal client and handle upload based on environment
         if (process.env.AI_TRAINING_API_ENV === "production") {
           fal.config({
@@ -161,10 +166,11 @@ export function registerRoutes(app: express.Application) {
               content_type: "application/octet-stream",
               file_name: "config.json",
               file_size: 452,
-            }
-          }
+            },
+          },
         };
-      }nsole.log(result);
+      }
+      coconsole.log(result);
       res.json(result.data);
     } catch (error) {
       console.error("Training error:", error);
