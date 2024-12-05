@@ -11,6 +11,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
+  loginWithGoogle: () => void;
   isLoading: boolean;
 }
 
@@ -75,8 +76,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const loginWithGoogle = useCallback(() => {
+    window.location.href = '/api/auth/google';
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, login, register, logout, loginWithGoogle, isLoading }}>
       {children}
     </AuthContext.Provider>
   );
