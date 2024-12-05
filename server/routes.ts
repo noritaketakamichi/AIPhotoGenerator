@@ -84,6 +84,7 @@ export function registerRoutes(app: express.Application) {
           .values({
             status: "completed",
             zip_path: zipPath,
+            created_at: new Date(),
             // Note: user_id will be added when authentication is implemented
           })
           .returning();
