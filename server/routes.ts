@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import path from "path";
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+import { fileURLToPath } from "url";
+import { dirname } from "path";
 import express, { Request, Response } from "express";
 import multer from "multer";
 import { mkdir, readFile } from "fs/promises";
@@ -13,7 +13,7 @@ import { fal } from "@fal-ai/client";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-dotenv.config({ path: path.join(__dirname, '../.env') });
+dotenv.config({ path: path.join(__dirname, "../.env") });
 
 const storage = multer.diskStorage({
   destination: async function (req, file, cb) {
@@ -110,8 +110,7 @@ export function registerRoutes(app: express.Application) {
   // Training endpoint
   app.post("/api/train", async (req: Request, res: Response) => {
     try {
-      console.log("train endpoint called");
-      console.log(process.env.AI_TRAINING_API_ENV);
+      console.log("Training API Environment:", process.env.AI_TRAINING_API_ENV);
 
       const { falUrl } = req.body;
 
