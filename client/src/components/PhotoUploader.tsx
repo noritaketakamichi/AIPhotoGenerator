@@ -15,6 +15,7 @@ export function PhotoUploader() {
   const [trainingResult, setTrainingResult] = useState<any>(null);
   const [prompt, setPrompt] = useState<string>("");
   const [generatedImages, setGeneratedImages] = useState<Array<{ url: string; file_name: string }>>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
 
   const onDrop = useCallback(
@@ -207,6 +208,7 @@ export function PhotoUploader() {
             />
             <button
               className="mt-2 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90"
+              disabled={isGenerating}
               onClick={async () => {
                 try {
                   if (!trainingResult?.diffusers_lora_file?.url) {
@@ -217,7 +219,8 @@ export function PhotoUploader() {
                     });
                     return;
                   }
-
+                  
+                  setIsGenerating(true);
                   const response = await fetch("/api/generate", {
                     method: "POST",
                     headers: {
@@ -249,10 +252,18 @@ export function PhotoUploader() {
                     description: "Failed to generate image",
                     variant: "destructive",
                   });
+                } finally {
+                  setIsGenerating(false);
                 }
               }}
             >
-              Submit
+              {isGenerating ? (
+                <>
+                  <span className="animate-pulse">Generating...</span>
+                </>
+              ) : (
+                "Submit"
+              )}
             </button>
           </div>
           {generatedImages.length > 0 && (
