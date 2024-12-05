@@ -92,7 +92,7 @@ export function registerRoutes(app: express.Application) {
         const file = new Blob([zipFile], { type: "application/zip" });
 
         console.log("file was created");
-        
+
         let falUrl: string;
         // Initialize fal client and handle upload based on environment
         if (process.env.AI_TRAINING_API_ENV === "production") {
@@ -102,7 +102,7 @@ export function registerRoutes(app: express.Application) {
           falUrl = await fal.storage.upload(file);
         } else {
           // Mock URL for development environment
-          falUrl = `https://v3.fal.media/files/mock/${Buffer.from(Math.random().toString()).toString('hex').slice(0, 8)}_${Date.now()}.zip`;
+          falUrl = `https://v3.fal.media/files/mock/${Buffer.from(Math.random().toString()).toString("hex").slice(0, 8)}_${Date.now()}.zip`;
         }
 
         res.json({
@@ -156,13 +156,13 @@ export function registerRoutes(app: express.Application) {
         result = {
           data: {
             diffusers_lora_file: {
-              url: "https://v3.fal.media/files/mock/model_weights.safetensors",
+              url: "https://v3.fal.media/files/penguin/MfKRMr7gp6TqNfttnWt84_pytorch_lora_weights.safetensors",
               content_type: "application/octet-stream",
-              file_name: "model_weights.safetensors",
+              file_name: "pytorch_lora_weights.safetensors",
               file_size: 89745224,
             },
             config_file: {
-              url: "https://v3.fal.media/files/mock/config.json",
+              url: "https://v3.fal.media/files/lion/1_jzXYliDKoqpnsl2ZUap_config.json",
               content_type: "application/octet-stream",
               file_name: "config.json",
               file_size: 452,
@@ -170,7 +170,7 @@ export function registerRoutes(app: express.Application) {
           },
         };
       }
-      coconsole.log(result);
+      console.log(result);
       res.json(result.data);
     } catch (error) {
       console.error("Training error:", error);
