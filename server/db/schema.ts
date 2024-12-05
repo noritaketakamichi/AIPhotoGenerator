@@ -17,7 +17,8 @@ export const uploads = pgTable('uploads', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').references(() => users.id),
   status: text('status').notNull(),
-  file_count: integer('file_count').notNull(),
   zip_path: text('zip_path').notNull(),
-  created_at: timestamp('created_at').defaultNow(),
+  falUrl: text('fal_url'),
+  created_at: timestamp('created_at').defaultNow().notNull(),
+  updated_at: timestamp('updated_at').defaultNow().notNull()
 });
