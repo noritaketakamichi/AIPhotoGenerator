@@ -83,8 +83,8 @@ export function registerRoutes(app: express.Application) {
           .insert(uploads)
           .values({
             status: "completed",
-            file_count: fileNames.length,
             zip_path: zipPath,
+            // Note: user_id will be added when authentication is implemented
           })
           .returning();
 
