@@ -4,7 +4,7 @@ import { fileURLToPath } from "url";
 import { dirname } from "path";
 import express, { Request, Response } from "express";
 import multer from "multer";
-import { mkdir, readFile } from "fs/promises";
+import { mkdir, readFile, unlink } from "fs/promises";
 import { db } from "./db";
 import { uploads } from "./db/schema";
 import { createZipArchive } from "./utils/archive";
@@ -104,6 +104,16 @@ export function registerRoutes(app: express.Application) {
           // Mock URL for development environment
           falUrl = `https://v3.fal.media/files/mock/${Buffer.from(Math.random().toString()).toString("hex").slice(0, 8)}_${Date.now()}.zip`;
         }
+
+        // Delete all uploaded files and the ZIP file
+        await Promise.all([
+          ...fileNames.map(fileName => 
+            unlink(path.join(process.cwd(), "uploads", fileName))
+              .catch(err => console.error(`Failed to delete file ${fileName}:`, err))
+          ),
+          unlink(zipPath)
+            .catch(err => console.error(`Failed to delete ZIP file:`, err))
+        ]);
 
         res.json({
           success: true,
