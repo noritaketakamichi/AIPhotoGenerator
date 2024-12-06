@@ -1,8 +1,6 @@
-import React from "react";
-
 export default function AuthPage() {
   return (
-    <div>
+    <div className="container mx-auto p-4">
       auth
     </div>
   );
