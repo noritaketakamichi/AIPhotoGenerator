@@ -10,6 +10,9 @@ export default function Home() {
           <p className="text-muted-foreground">
             Upload exactly 4 photos to create a ZIP archive
           </p>
+          <a href="/auth" className="text-primary hover:underline">
+            Go to Auth Page
+          </a>
         </div>
         
         <Card className="p-6">
