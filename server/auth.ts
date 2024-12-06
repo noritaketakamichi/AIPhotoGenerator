@@ -65,7 +65,7 @@ passport.use(
         // Create new user if doesn't exist
         const [newUser] = await db.insert(users).values({
           email: email,
-          credit: 0,
+          credit: 25, // Initial credit for new users
         }).returning();
 
         return done(null, newUser);

@@ -16,8 +16,11 @@ export default function Home() {
           </p>
           {user ? (
             <div className="space-y-2">
-              <p>Welcome, {user.email}</p>
-              <Button onClick={logout} variant="outline">Sign Out</Button>
+              <div className="space-y-2">
+                <p>Welcome, {user.email}</p>
+                <p className="text-sm text-muted-foreground">Credits Available: {user.credit}</p>
+                <Button onClick={logout} variant="outline">Sign Out</Button>
+              </div>
             </div>
           ) : (
             <Link href="/auth">
