@@ -46,15 +46,32 @@ const upload = multer({
 
 export function registerRoutes(app: express.Application) {
   // Serve static files from the client build directory
-  app.use(express.static(path.join(__dirname, '../client/dist')));
+  app.use(express.static(path.join(__dirname, '../dist/public')));
   
   // Handle client-side routing
-  app.get(['/login', '/'], (req, res, next) => {
+  app.get(['/', '/login', '/register'], (req, res, next) => {
     if (req.url.startsWith('/api')) {
       next();
       return;
     }
-    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+    res.sendFile(path.join(__dirname, '../dist/public/index.html'));
+  });
+
+  // Verify session endpoint
+  app.get('/api/auth/verify', (req, res) => {
+    if (req.isAuthenticated()) {
+      const user = req.user as any;
+      res.json({ 
+        authenticated: true, 
+        user: { 
+          id: user.id, 
+          email: user.email, 
+          name: user.name 
+        } 
+      });
+    } else {
+      res.json({ authenticated: false });
+    }
   });
   // File upload endpoint
   app.post(
