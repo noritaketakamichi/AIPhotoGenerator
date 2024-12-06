@@ -89,9 +89,11 @@ export function registerRoutes(app: express.Application) {
     console.log('X-Forwarded-Host:', req.get('x-forwarded-host'));
     console.log('========================\n');
     
+    const fullUrl = `https://${req.get('host')}`;
     passport.authenticate('google', { 
       scope: ['profile', 'email'],
-      state: 'debug-session'
+      state: 'debug-session',
+      callbackURL: `${fullUrl}/auth/google/callback`
     })(req, res, next);
   });
 
