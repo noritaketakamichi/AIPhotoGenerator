@@ -26,6 +26,10 @@ function log(message: string) {
 }
 
 const app = express();
+
+// Trust proxy settings for secure HTTPS handling
+app.set('trust proxy', 1);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
