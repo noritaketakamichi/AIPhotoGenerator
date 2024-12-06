@@ -37,8 +37,9 @@ passport.use(
     async (accessToken: string, refreshToken: string, profile: any, done: any) => {
       // Log the redirect URI being used
       console.log('Auth Configuration:', {
-        callbackURL: "/auth/google/callback",
-        fullURL: `${process.env.NODE_ENV === 'production' ? 'https' : 'http'}://localhost:5000/auth/google/callback`,
+        callbackURL: process.env.NODE_ENV === 'production'
+          ? 'https://466108c8-ed88-4061-af7f-61e53df5b8eb-00-mkii563l5bz7.sisko.replit.dev/auth/google/callback'
+          : 'http://localhost:5000/auth/google/callback',
         environment: process.env.NODE_ENV
       });
       try {

@@ -80,12 +80,18 @@ export function registerRoutes(app: express.Application) {
     })(req, res, next);
   });
 
-  app.get('/auth/google/callback',
+  app.get('/auth/google/callback', (req, res, next) => {
+    console.log('\n=== Google Auth Callback ===');
+    console.log('Callback Headers:', req.headers);
+    console.log('Callback Query:', req.query);
+    console.log('========================\n');
+
     passport.authenticate('google', { 
       successRedirect: '/',
-      failureRedirect: '/auth' 
-    })
-  );
+      failureRedirect: '/auth',
+      failureMessage: true
+    })(req, res, next);
+  });
 
   app.get('/api/auth/user', (req, res) => {
     if (req.user) {
