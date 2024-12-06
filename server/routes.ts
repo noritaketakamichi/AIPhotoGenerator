@@ -54,11 +54,24 @@ export function registerRoutes(app: express.Application) {
     saveUninitialized: false,
     proxy: true,
     cookie: {
-      secure: process.env.NODE_ENV === 'production',
+      secure: true, // Always use secure cookies
       sameSite: 'lax',
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
     }
   }));
+
+  // Log all incoming requests for debugging
+  app.use((req, res, next) => {
+    console.log('\n=== Incoming Request ===');
+    console.log('URL:', req.url);
+    console.log('Headers:', {
+      'x-forwarded-proto': req.get('x-forwarded-proto'),
+      'x-forwarded-host': req.get('x-forwarded-host'),
+      'host': req.get('host')
+    });
+    console.log('=====================\n');
+    next();
+  });
 
   // Initialize Passport and restore authentication state from session
   app.use(passport.initialize());
