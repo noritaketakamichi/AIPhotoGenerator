@@ -13,6 +13,11 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic } from "./vite";
 import { createServer } from "http";
 import { mockFalApiRoutes } from "./mocks/falApi";
+import session from "express-session";
+import passport from "passport";
+import "./middleware/auth";
+import "./middleware/google-auth";
+import authRoutes from "./routes/auth";
 
 
 function log(message: string) {
@@ -29,6 +34,28 @@ function log(message: string) {
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Session configuration
+if (!process.env.SESSION_SECRET) {
+  console.warn("No SESSION_SECRET set, using a default secret. This is not secure for production!");
+}
+
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'default-secret-key-for-development',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
+// Initialize Passport and restore authentication state from session
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Mount auth routes
+app.use('/api/auth', authRoutes);
 
 app.use((req, res, next) => {
   const start = Date.now();
