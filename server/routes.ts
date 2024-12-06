@@ -52,8 +52,10 @@ export function registerRoutes(app: express.Application) {
     secret: process.env.SESSION_SECRET || 'development-secret-key-do-not-use-in-production-9812734',
     resave: false,
     saveUninitialized: false,
+    proxy: true,
     cookie: {
       secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
     }
   }));
