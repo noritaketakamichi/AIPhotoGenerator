@@ -63,9 +63,22 @@ export function registerRoutes(app: express.Application) {
   app.use(passport.session());
 
   // Auth routes
-  app.get('/auth/google',
-    passport.authenticate('google', { scope: ['profile', 'email'] })
-  );
+  app.get('/auth/google', (req, res, next) => {
+    console.log('\n=== Google Auth Request ===');
+    console.log('Auth Request Headers:', req.headers);
+    console.log('Current Environment:', process.env.NODE_ENV);
+    console.log('Request Protocol:', req.protocol);
+    console.log('Request Host:', req.get('host'));
+    console.log('Full URL:', `${req.protocol}://${req.get('host')}${req.originalUrl}`);
+    console.log('X-Forwarded-Proto:', req.get('x-forwarded-proto'));
+    console.log('X-Forwarded-Host:', req.get('x-forwarded-host'));
+    console.log('========================\n');
+    
+    passport.authenticate('google', { 
+      scope: ['profile', 'email'],
+      state: 'debug-session'
+    })(req, res, next);
+  });
 
   app.get('/auth/google/callback',
     passport.authenticate('google', { 
