@@ -1,5 +1,7 @@
 import { PhotoUploader } from "../components/PhotoUploader";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Link } from "wouter";
 
 export default function Home() {
   return (
@@ -10,9 +12,9 @@ export default function Home() {
           <p className="text-muted-foreground">
             Upload exactly 4 photos to create a ZIP archive
           </p>
-          <a href="/auth" className="text-primary hover:underline mt-2 inline-block">
-            Go to Auth
-          </a>
+          <Link href="/auth">
+            <Button className="mt-2">Go to Auth</Button>
+          </Link>
         </div>
         
         <Card className="p-6">
