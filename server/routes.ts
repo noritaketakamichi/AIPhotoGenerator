@@ -86,10 +86,26 @@ export function registerRoutes(app: express.Application) {
     console.log('Callback Query:', req.query);
     console.log('========================\n');
 
-    passport.authenticate('google', { 
-      successRedirect: '/',
-      failureRedirect: '/auth',
-      failureMessage: true
+    passport.authenticate('google', (err, user) => {
+      if (err) {
+        console.error('Authentication Error:', err);
+        return res.redirect('/auth?error=' + encodeURIComponent(err.message));
+      }
+      
+      if (!user) {
+        console.error('Authentication failed: No user returned');
+        return res.redirect('/auth?error=authentication_failed');
+      }
+
+      req.logIn(user, (err) => {
+        if (err) {
+          console.error('Login Error:', err);
+          return res.redirect('/auth?error=' + encodeURIComponent(err.message));
+        }
+        
+        // Successful authentication, redirect home
+        res.redirect('/');
+      });
     })(req, res, next);
   });
 
