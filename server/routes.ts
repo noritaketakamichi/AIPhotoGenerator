@@ -3,6 +3,10 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
 import express, { Request, Response } from "express";
+import session from "express-session";
+import passport from "passport";
+import connectPgSimple from "connect-pg-simple";
+import { authRouter } from "./auth";
 import multer from "multer";
 import { mkdir, readFile, unlink, readdir } from "fs/promises";
 import { db } from "./db";
@@ -45,6 +49,31 @@ const upload = multer({
 });
 
 export function registerRoutes(app: express.Application) {
+  // Configure session middleware
+  const PgSession = connectPgSimple(session);
+  app.use(
+    session({
+      store: new PgSession({
+        conObject: {
+          connectionString: process.env.DATABASE_URL,
+        },
+      }),
+      secret: process.env.SESSION_SECRET || "your-secret-key",
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        secure: process.env.NODE_ENV === "production",
+      },
+    })
+  );
+
+  // Initialize Passport and restore authentication state from session
+  app.use(passport.initialize());
+  app.use(passport.session());
+
+  // Mount auth routes
+  app.use("/api/auth", authRouter);
   // File upload endpoint
   app.post(
     "/api/upload",
@@ -241,9 +270,7 @@ export function registerRoutes(app: express.Application) {
               },
             ],
             prompt: prompt,
-            embeddings: [],
             image_size: "square_hd",
-            model_name: null,
             enable_safety_checker: true,
           },
           logs: true,
