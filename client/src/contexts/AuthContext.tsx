@@ -43,8 +43,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = () => {
     console.log('Initiating Google login...');
-    // Use the full URL to ensure correct routing
-    const loginUrl = `${window.location.origin}/auth/google`;
+    // Use the current origin to build the auth URL
+    const loginUrl = `/auth/google`;
     console.log('Redirecting to:', loginUrl);
     window.location.href = loginUrl;
   };
