@@ -30,19 +30,15 @@ passport.use(
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       callbackURL: "/auth/google/callback",
       scope: ["profile", "email"],
+      proxy: true
     },
-    {
-      proxy: true,
-    },
-    function(accessToken, refreshToken, profile, done) {
+    async (accessToken: string, refreshToken: string, profile: any, done: any) => {
       // Log the redirect URI being used
       console.log('Auth Configuration:', {
         callbackURL: "/auth/google/callback",
         fullURL: `${process.env.NODE_ENV === 'production' ? 'https' : 'http'}://localhost:5000/auth/google/callback`,
         environment: process.env.NODE_ENV
       });
-    },
-    async (accessToken, refreshToken, profile, done) => {
       try {
         const email = profile.emails?.[0]?.value;
         
