@@ -82,18 +82,15 @@ export function registerRoutes(app: express.Application) {
     console.log('\n=== Google Auth Request ===');
     console.log('Auth Request Headers:', req.headers);
     console.log('Current Environment:', process.env.NODE_ENV);
-    console.log('Request Protocol:', req.protocol);
-    console.log('Request Host:', req.get('host'));
-    console.log('Full URL:', `${req.protocol}://${req.get('host')}${req.originalUrl}`);
-    console.log('X-Forwarded-Proto:', req.get('x-forwarded-proto'));
-    console.log('X-Forwarded-Host:', req.get('x-forwarded-host'));
+    
+    // Get the callback URL that will be used
+    const callbackUrl = 'https://466108c8-ed88-4061-af7f-61e53df5b8eb-00-mkii563l5bz7.sisko.replit.dev/auth/google/callback';
+    console.log('Using Callback URL:', callbackUrl);
     console.log('========================\n');
     
-    const fullUrl = `https://${req.get('host')}`;
     passport.authenticate('google', { 
       scope: ['profile', 'email'],
-      state: 'debug-session',
-      callbackURL: `${fullUrl}/auth/google/callback`
+      callbackURL: callbackUrl
     })(req, res, next);
   });
 
@@ -101,6 +98,8 @@ export function registerRoutes(app: express.Application) {
     console.log('\n=== Google Auth Callback ===');
     console.log('Callback Headers:', req.headers);
     console.log('Callback Query:', req.query);
+    console.log('Callback URL:', 'https://466108c8-ed88-4061-af7f-61e53df5b8eb-00-mkii563l5bz7.sisko.replit.dev/auth/google/callback');
+    console.log('Current URL:', `${req.protocol}://${req.get('host')}${req.originalUrl}`);
     console.log('========================\n');
 
     passport.authenticate('google', (err, user) => {

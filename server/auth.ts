@@ -30,7 +30,7 @@ passport.use(
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       scope: ["profile", "email"],
       proxy: true,
-      callbackURL: '/auth/google/callback'
+      callbackURL: 'https://466108c8-ed88-4061-af7f-61e53df5b8eb-00-mkii563l5bz7.sisko.replit.dev/auth/google/callback'
     },
     async (accessToken: string, refreshToken: string, profile: any, done: any) => {
       // Log authentication details
