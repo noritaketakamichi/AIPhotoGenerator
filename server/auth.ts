@@ -30,10 +30,18 @@ passport.use(
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       scope: ["profile", "email"],
       proxy: true,
-      callbackURL: 'https://466108c8-ed88-4061-af7f-61e53df5b8eb-00-mkii563l5bz7.sisko.replit.dev/auth/google/callback'
+      callbackURL: '/auth/google/callback'
     },
     async (accessToken: string, refreshToken: string, profile: any, done: any) => {
-      // Log the redirect URI being used
+      // Log authentication details
+      console.log('\n=== Google Auth Details ===');
+      console.log('Auth Environment:', process.env.NODE_ENV);
+      console.log('Profile:', {
+        id: profile.id,
+        displayName: profile.displayName,
+        emails: profile.emails
+      });
+      console.log('========================\n');
       console.log('Auth Configuration:', {
         callbackURL: process.env.NODE_ENV === 'production'
           ? 'https://466108c8-ed88-4061-af7f-61e53df5b8eb-00-mkii563l5bz7.sisko.replit.dev/auth/google/callback'
