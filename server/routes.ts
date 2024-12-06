@@ -45,34 +45,6 @@ const upload = multer({
 });
 
 export function registerRoutes(app: express.Application) {
-  // Serve static files from the client build directory
-  app.use(express.static(path.join(__dirname, '../dist/public')));
-  
-  // Handle client-side routing
-  app.get(['/', '/login', '/register'], (req, res, next) => {
-    if (req.url.startsWith('/api')) {
-      next();
-      return;
-    }
-    res.sendFile(path.join(__dirname, '../dist/public/index.html'));
-  });
-
-  // Verify session endpoint
-  app.get('/api/auth/verify', (req, res) => {
-    if (req.isAuthenticated()) {
-      const user = req.user as any;
-      res.json({ 
-        authenticated: true, 
-        user: { 
-          id: user.id, 
-          email: user.email, 
-          name: user.name 
-        } 
-      });
-    } else {
-      res.json({ authenticated: false });
-    }
-  });
   // File upload endpoint
   app.post(
     "/api/upload",
@@ -111,9 +83,8 @@ export function registerRoutes(app: express.Application) {
           .insert(uploads)
           .values({
             status: "completed",
+            file_count: fileNames.length,
             zip_path: zipPath,
-            created_at: new Date(),
-            // Note: user_id will be added when authentication is implemented
           })
           .returning();
 
@@ -128,9 +99,7 @@ export function registerRoutes(app: express.Application) {
           fal.config({
             credentials: process.env.FAL_AI_API_KEY,
           });
-          falUrl = process.env.NODE_ENV === 'development' 
-            ? `https://v3.fal.mock.ai/files/${Buffer.from(Math.random().toString()).toString("hex").slice(0, 8)}_${Date.now()}.zip`
-            : await fal.storage.upload(file);
+          falUrl = await fal.storage.upload(file);
         } else {
           // Mock URL for development environment
           falUrl = `https://v3.fal.media/files/mock/${Buffer.from(Math.random().toString()).toString("hex").slice(0, 8)}_${Date.now()}.zip`;
@@ -272,8 +241,9 @@ export function registerRoutes(app: express.Application) {
               },
             ],
             prompt: prompt,
-            // embeddings property removed as it's not part of FluxLoraInput type
+            embeddings: [],
             image_size: "square_hd",
+            model_name: null,
             enable_safety_checker: true,
           },
           logs: true,
