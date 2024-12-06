@@ -9,6 +9,8 @@ import { db } from "./db";
 import { uploads } from "./db/schema";
 import { createZipArchive } from "./utils/archive";
 import { fal } from "@fal-ai/client";
+import passport from "./auth";
+import session from "express-session";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -45,6 +47,46 @@ const upload = multer({
 });
 
 export function registerRoutes(app: express.Application) {
+  // Session middleware
+  app.use(session({
+    secret: process.env.SESSION_SECRET || 'development-secret-key-do-not-use-in-production-9812734',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
+  }));
+
+  // Initialize Passport and restore authentication state from session
+  app.use(passport.initialize());
+  app.use(passport.session());
+
+  // Auth routes
+  app.get('/auth/google',
+    passport.authenticate('google', { scope: ['profile', 'email'] })
+  );
+
+  app.get('/auth/google/callback',
+    passport.authenticate('google', { 
+      successRedirect: '/',
+      failureRedirect: '/auth' 
+    })
+  );
+
+  app.get('/api/auth/user', (req, res) => {
+    if (req.user) {
+      res.json(req.user);
+    } else {
+      res.status(401).json({ error: 'Not authenticated' });
+    }
+  });
+
+  app.post('/api/auth/logout', (req, res) => {
+    req.logout(() => {
+      res.json({ success: true });
+    });
+  });
   // File upload endpoint
   app.post(
     "/api/upload",
