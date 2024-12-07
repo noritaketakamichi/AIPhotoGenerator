@@ -13,6 +13,7 @@ interface AuthContextType {
   error: string | null;
   login: () => void;
   logout: () => Promise<void>;
+  refreshUserData: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -41,6 +42,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshUserData = async () => {
+    try {
+      const response = await fetch("/api/auth/user");
+      if (response.ok) {
+        const userData = await response.json();
+        setUser(userData);
+      }
+    } catch (err) {
+      console.error("Failed to refresh user data:", err);
+    }
+  };
+
   const login = () => {
     console.log('Initiating Google login...');
     // Use the current origin to build the auth URL
@@ -64,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, error, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, error, login, logout, refreshUserData }}>
       {children}
     </AuthContext.Provider>
   );
