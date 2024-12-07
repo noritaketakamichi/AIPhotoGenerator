@@ -23,3 +23,12 @@ export const training_models = pgTable('training_models', {
   config_url: text('config_url').notNull(),
   created_at: timestamp('created_at').defaultNow().notNull(),
 });
+
+export const generated_photos = pgTable('generated_photos', {
+  id: serial('id').primaryKey(),
+  user_id: integer('user_id').notNull().references(() => users.id),
+  model_id: integer('model_id').notNull().references(() => training_models.id),
+  prompt: text('prompt').notNull(),
+  image_url: text('image_url').notNull(),
+  created_at: timestamp('created_at').defaultNow().notNull(),
+});
