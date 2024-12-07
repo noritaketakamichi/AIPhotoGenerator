@@ -7,16 +7,21 @@ import multer from "multer";
 import { mkdir, readFile, unlink, readdir } from "fs/promises";
 import { db } from "./db";
 import { uploads, training_models, generated_photos, users } from "./db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { createZipArchive } from "./utils/archive";
 import { fal } from "@fal-ai/client";
 import passport from "./auth";
 import session from "express-session";
+import Stripe from 'stripe';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 dotenv.config({ path: path.join(__dirname, "../.env") });
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+  apiVersion: '2023-10-16'
+});
 
 const storage = multer.diskStorage({
   destination: async function (req, file, cb) {
@@ -55,24 +60,11 @@ export function registerRoutes(app: express.Application) {
     saveUninitialized: false,
     proxy: true,
     cookie: {
-      secure: true, // Always use secure cookies
+      secure: true,
       sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      maxAge: 24 * 60 * 60 * 1000
     }
   }));
-
-  // Log all incoming requests for debugging
-  app.use((req, res, next) => {
-    console.log('\n=== Incoming Request ===');
-    console.log('URL:', req.url);
-    console.log('Headers:', {
-      'x-forwarded-proto': req.get('x-forwarded-proto'),
-      'x-forwarded-host': req.get('x-forwarded-host'),
-      'host': req.get('host')
-    });
-    console.log('=====================\n');
-    next();
-  });
 
   // Initialize Passport and restore authentication state from session
   app.use(passport.initialize());
@@ -80,16 +72,9 @@ export function registerRoutes(app: express.Application) {
 
   // Auth routes
   app.get('/auth/google', (req, res, next) => {
-    console.log('\n=== Google Auth Request ===');
-    console.log('Auth Request Headers:', req.headers);
-    console.log('Current Environment:', process.env.NODE_ENV);
-    
-    // Get the callback URL that will be used
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const host = req.headers['x-forwarded-host'] || req.get('host');
     const callbackUrl = `${protocol}://${host}/auth/google/callback`;
-    console.log('Using Callback URL:', callbackUrl);
-    console.log('========================\n');
     
     passport.authenticate('google', { 
       scope: ['profile', 'email'],
@@ -98,31 +83,19 @@ export function registerRoutes(app: express.Application) {
   });
 
   app.get('/auth/google/callback', (req, res, next) => {
-    console.log('\n=== Google Auth Callback ===');
-    console.log('Callback Headers:', req.headers);
-    console.log('Callback Query:', req.query);
-    console.log('Callback URL:', 'https://466108c8-ed88-4061-af7f-61e53df5b8eb-00-mkii563l5bz7.sisko.replit.dev/auth/google/callback');
-    console.log('Current URL:', `${req.protocol}://${req.get('host')}${req.originalUrl}`);
-    console.log('========================\n');
-
     passport.authenticate('google', (err, user) => {
       if (err) {
-        console.error('Authentication Error:', err);
         return res.redirect('/auth?error=' + encodeURIComponent(err.message));
       }
       
       if (!user) {
-        console.error('Authentication failed: No user returned');
         return res.redirect('/auth?error=authentication_failed');
       }
 
       req.logIn(user, (err) => {
         if (err) {
-          console.error('Login Error:', err);
           return res.redirect('/auth?error=' + encodeURIComponent(err.message));
         }
-        
-        // Successful authentication, redirect home
         res.redirect('/');
       });
     })(req, res, next);
@@ -155,8 +128,6 @@ export function registerRoutes(app: express.Application) {
         return res.status(400).json({ error: 'Credits and amount are required' });
       }
 
-      const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-      
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         line_items: [
@@ -190,14 +161,13 @@ export function registerRoutes(app: express.Application) {
 
   // Stripe webhook endpoint for successful payments
   app.post('/api/stripe-webhook', async (req: Request, res: Response) => {
-    const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
     const sig = req.headers['stripe-signature'];
 
     try {
       const event = stripe.webhooks.constructEvent(
         req.body,
-        sig,
-        process.env.STRIPE_WEBHOOK_SECRET
+        sig || '',
+        process.env.STRIPE_WEBHOOK_SECRET || ''
       );
 
       if (event.type === 'checkout.session.completed') {
@@ -220,6 +190,7 @@ export function registerRoutes(app: express.Application) {
       res.status(400).json({ error: 'Webhook signature verification failed' });
     }
   });
+
   // File upload endpoint
   app.post(
     "/api/upload",
@@ -235,8 +206,6 @@ export function registerRoutes(app: express.Application) {
           [fieldname: string]: Express.Multer.File[];
         };
 
-        console.log("files", files);
-
         if (!files || Object.keys(files).length !== 4) {
           return res
             .status(400)
@@ -248,8 +217,6 @@ export function registerRoutes(app: express.Application) {
         );
         const zipFileName = `archive-${Date.now()}.zip`;
         const zipPath = path.join(process.cwd(), "uploads", zipFileName);
-
-        console.log("createZipArchive will be called");
 
         await createZipArchive(fileNames, zipPath);
 
@@ -266,21 +233,17 @@ export function registerRoutes(app: express.Application) {
         const zipFile = await readFile(zipPath);
         const file = new Blob([zipFile], { type: "application/zip" });
 
-        console.log("file was created");
-
         let falUrl: string;
-        // Initialize fal client and handle upload based on environment
         if (process.env.AI_TRAINING_API_ENV === "production") {
           fal.config({
             credentials: process.env.FAL_AI_API_KEY,
           });
           falUrl = await fal.storage.upload(file);
         } else {
-          // Mock URL for development environment
           falUrl = `https://v3.fal.media/files/mock/${Buffer.from(Math.random().toString()).toString("hex").slice(0, 8)}_${Date.now()}.zip`;
         }
 
-        // Delete all uploaded files and the ZIP file
+        // Delete uploaded files and ZIP
         await Promise.all([
           ...fileNames.map(fileName => 
             unlink(path.join(process.cwd(), "uploads", fileName))
