@@ -6,7 +6,8 @@ import express, { Request, Response } from "express";
 import multer from "multer";
 import { mkdir, readFile, unlink, readdir } from "fs/promises";
 import { db } from "./db";
-import { uploads } from "./db/schema";
+import { uploads, training_models, generated_photos, users } from "./db/schema";
+import { eq, desc } from "drizzle-orm";
 import { createZipArchive } from "./utils/archive";
 import { fal } from "@fal-ai/client";
 import passport from "./auth";
@@ -84,7 +85,9 @@ export function registerRoutes(app: express.Application) {
     console.log('Current Environment:', process.env.NODE_ENV);
     
     // Get the callback URL that will be used
-    const callbackUrl = 'https://466108c8-ed88-4061-af7f-61e53df5b8eb-00-mkii563l5bz7.sisko.replit.dev/auth/google/callback';
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    const callbackUrl = `${protocol}://${host}/auth/google/callback`;
     console.log('Using Callback URL:', callbackUrl);
     console.log('========================\n');
     
@@ -239,6 +242,43 @@ export function registerRoutes(app: express.Application) {
         credentials: process.env.FAL_AI_API_KEY,
       });
 
+      if (!req.user?.id) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      // Check if user has enough credits
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, req.user.id));
+
+      if (!user || user.credit < 20) {
+        return res.status(403).json({ 
+          error: "Insufficient credits", 
+          required: 20,
+          available: user?.credit || 0 
+        });
+      }
+
+      // Deduct credits
+      await db
+        .update(users)
+        .set({ credit: user.credit - 20 })
+        .where(eq(users.id, req.user.id));
+
+      // Get the next model number for this user
+      const [lastModel] = await db
+        .select({ name: training_models.name })
+        .from(training_models)
+        .where(eq(training_models.user_id, req.user.id))
+        .orderBy(desc(training_models.name))
+        .limit(1);
+
+      const nextModelNumber = lastModel 
+        ? parseInt(lastModel.name.replace('model', '')) + 1 
+        : 1;
+      const modelName = `model${nextModelNumber}`;
+
       if (process.env.AI_TRAINING_API_ENV === "production") {
         result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
           input: {
@@ -272,6 +312,14 @@ export function registerRoutes(app: express.Application) {
           },
         };
       }
+
+      // Save training history
+      await db.insert(training_models).values({
+        user_id: req.user.id,
+        name: modelName,
+        training_data_url: result.data.diffusers_lora_file.url,
+        config_url: result.data.config_file.url,
+      });
       console.log(result);
 
       // Delete all remaining files in the uploads directory
@@ -308,15 +356,47 @@ export function registerRoutes(app: express.Application) {
     }
   });
 
+  // Get user's training models endpoint
+  app.get("/api/models", async (req: Request, res: Response) => {
+    try {
+      if (!req.user?.id) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const models = await db
+        .select({
+          id: training_models.id,
+          name: training_models.name,
+          trainingDataUrl: training_models.training_data_url,
+          configUrl: training_models.config_url,
+          createdAt: training_models.created_at,
+        })
+        .from(training_models)
+        .where(eq(training_models.user_id, req.user.id))
+        .orderBy(desc(training_models.created_at));
+
+      res.json(models);
+    } catch (error) {
+      console.error("Error fetching models:", error);
+      res.status(500).json({ error: "Failed to fetch models" });
+    }
+  });
+
   // Generate image endpoint
   app.post("/api/generate", async (req: Request, res: Response) => {
     try {
-      const { loraUrl, prompt } = req.body;
+      const { modelId, loraUrl, prompt } = req.body;
+      console.log("Generate endpoint called with:", { 
+        modelId,
+        loraUrl,
+        prompt,
+        userId: req.user?.id 
+      });
 
-      if (!loraUrl || !prompt) {
+      if (!modelId || !loraUrl || !prompt) {
         return res
           .status(400)
-          .json({ error: "LoRA URL and prompt are required" });
+          .json({ error: "Model ID, LoRA URL, and prompt are required" });
       }
 
       const { fal } = await import("@fal-ai/client");
@@ -324,43 +404,137 @@ export function registerRoutes(app: express.Application) {
         credentials: process.env.FAL_AI_API_KEY,
       });
 
-      if (process.env.AI_GENERATION_API_ENV === "production") {
-        const result = await fal.subscribe("fal-ai/flux-lora", {
-          input: {
-            loras: [
-              {
-                path: loraUrl,
-                scale: 1,
-              },
-            ],
-            prompt: prompt,
-            embeddings: [],
-            image_size: "square_hd",
-            model_name: null,
-            enable_safety_checker: true,
-          },
-          logs: true,
-          onQueueUpdate: (update) => {
-            if (update.status === "IN_PROGRESS") {
-              update.logs.map((log) => log.message).forEach(console.log);
-            }
-          },
-        });
-        res.json(result.data);
-      } else {
-        // Mock response for development
-        res.json({
-          images: [
-            {
-              url: "https://v3.fal.media/files/mock/generated_image.png",
-              file_name: "generated_image.png",
+      if (!req.user?.id) {
+          return res.status(401).json({ error: "Authentication required" });
+        }
+
+        // Check if user has enough credits
+        const [user] = await db
+          .select()
+          .from(users)
+          .where(eq(users.id, req.user.id));
+
+        if (!user || user.credit < 1) {
+          return res.status(403).json({ 
+            error: "Insufficient credits", 
+            required: 1,
+            available: user?.credit || 0 
+          });
+        }
+
+        // Deduct credits
+        await db
+          .update(users)
+          .set({ credit: user.credit - 1 })
+          .where(eq(users.id, req.user.id));
+
+        let result;
+        if (process.env.AI_GENERATION_API_ENV === "production") {
+          result = await fal.subscribe("fal-ai/flux-lora", {
+            input: {
+              loras: [
+                {
+                  path: loraUrl,
+                  scale: 1,
+                },
+              ],
+              prompt: prompt,
+              embeddings: [],
+              image_size: "square_hd",
+              model_name: null,
+              enable_safety_checker: true,
             },
-          ],
-        });
-      }
+            logs: true,
+            onQueueUpdate: (update) => {
+              if (update.status === "IN_PROGRESS") {
+                update.logs.map((log) => log.message).forEach(console.log);
+              }
+            },
+          });
+        } else {
+          // Mock response for development
+          result = {
+            data: {
+              images: [
+                {
+                  url: "https://v3.fal.media/files/mock/generated_image.png",
+                  file_name: "generated_image.png",
+                },
+              ],
+            },
+          };
+        }
+
+        // Verify that the model exists and belongs to the user
+        const [modelData] = await db
+          .select({ id: training_models.id })
+          .from(training_models)
+          .where(eq(training_models.id, modelId))
+          .where(eq(training_models.user_id, req.user.id))
+          .limit(1);
+
+        if (!modelData) {
+          return res.status(400).json({ error: "Invalid model ID or unauthorized access" });
+        }
+
+        // Store the generated image in the database
+        for (const image of result.data.images) {
+          console.log("Attempting to insert generated image:", {
+            user_id: req.user.id,
+            model_id: modelData.id,
+            prompt: prompt,
+            image_url: image.url,
+          });
+          
+          try {
+            const [insertedPhoto] = await db.insert(generated_photos).values({
+              user_id: req.user.id,
+              model_id: parseInt(modelId),
+              prompt: prompt,
+              image_url: image.url,
+            }).returning();
+            
+            console.log("Successfully inserted generated photo:", insertedPhoto);
+          } catch (error) {
+            console.error("Failed to insert generated photo:", error);
+            throw error;
+          }
+        }
+
+        res.json(result.data);
     } catch (error) {
       console.error("Generation error:", error);
       res.status(500).json({ error: "Image generation failed" });
+    }
+  });
+
+  // Get user's generated photos endpoint
+  app.get("/api/photos", async (req: Request, res: Response) => {
+    try {
+      if (!req.user?.id) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const photos = await db
+        .select({
+          id: generated_photos.id,
+          prompt: generated_photos.prompt,
+          image_url: generated_photos.image_url,
+          created_at: generated_photos.created_at,
+          model_name: training_models.name,
+        })
+        .from(generated_photos)
+        .leftJoin(
+          training_models,
+          eq(generated_photos.model_id, training_models.id)
+        )
+        .where(eq(generated_photos.user_id, req.user.id))
+        .orderBy(desc(generated_photos.created_at));
+
+      res.json(photos);
+    } catch (error) {
+      console.error("Error fetching photos:", error);
+      res.status(500).json({ error: "Failed to fetch photos" });
     }
   });
 }

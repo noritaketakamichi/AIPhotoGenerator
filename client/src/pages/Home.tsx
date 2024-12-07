@@ -10,16 +10,23 @@ export default function Home() {
     <div className="container mx-auto p-4 min-h-screen">
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">Photo Upload</h1>
+          <h1 className="text-3xl font-bold tracking-tight">AI Sokkuri photo generator</h1>
           <p className="text-muted-foreground">
-            Upload exactly 4 photos to create a ZIP archive
+            Upload your photos & Create Sokkuri images in any situation as you want
           </p>
           {user ? (
             <div className="space-y-2">
               <div className="space-y-2">
                 <p>Welcome, {user.email}</p>
                 <p className="text-sm text-muted-foreground">Credits Available: {user.credit}</p>
-                <Button onClick={logout} variant="outline">Sign Out</Button>
+                <div className="flex justify-between items-center">
+                  <Link href="/gallery">
+                    <Button variant="outline">Go to Gallery</Button>
+                  </Link>
+                  <Button onClick={logout} variant="ghost" size="sm" className="text-muted-foreground">
+                    Sign Out
+                  </Button>
+                </div>
               </div>
             </div>
           ) : (
@@ -34,7 +41,7 @@ export default function Home() {
             <PhotoUploader />
           ) : (
             <div className="text-center p-4">
-              <p className="text-muted-foreground">Please sign in to upload photos</p>
+              <p className="text-muted-foreground">Please sign in to enjoy generating photos!</p>
             </div>
           )}
         </Card>
