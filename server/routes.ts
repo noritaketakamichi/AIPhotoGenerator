@@ -161,6 +161,7 @@ export function registerRoutes(app: express.Application) {
 
   // Stripe webhook endpoint for successful payments
   app.post('/api/stripe-webhook', express.raw({type: 'application/json'}), async (req: Request, res: Response) => {
+    console.log('Received webhook event');
     const sig = req.headers['stripe-signature'];
 
     try {
@@ -170,9 +171,12 @@ export function registerRoutes(app: express.Application) {
         process.env.STRIPE_WEBHOOK_SECRET || ''
       );
 
+      console.log('Webhook event type:', event.type);
+
       if (event.type === 'checkout.session.completed') {
         const session = event.data.object as Stripe.Checkout.Session;
         console.log('Processing completed checkout session:', session.id);
+        console.log('Session metadata:', session.metadata);
         
         const userId = session.metadata?.userId;
         const credits = parseInt(session.metadata?.credits || '0');
@@ -184,16 +188,29 @@ export function registerRoutes(app: express.Application) {
 
         console.log(`Updating credits for user ${userId}: +${credits}`);
 
-        // Update user credits in database
-        const [updatedUser] = await db
-          .update(users)
-          .set({
-            credit: sql`credit + ${credits}`,
-          })
-          .where(eq(users.id, parseInt(userId)))
-          .returning();
+        try {
+          // First get current user credits
+          const [currentUser] = await db
+            .select({ credit: users.credit })
+            .from(users)
+            .where(eq(users.id, parseInt(userId)));
 
-        console.log('Updated user credits:', updatedUser);
+          console.log('Current user credits:', currentUser?.credit);
+
+          // Update user credits in database
+          const [updatedUser] = await db
+            .update(users)
+            .set({
+              credit: (currentUser?.credit || 0) + credits,
+            })
+            .where(eq(users.id, parseInt(userId)))
+            .returning();
+
+          console.log('Updated user credits:', updatedUser);
+        } catch (dbError) {
+          console.error('Database error:', dbError);
+          throw dbError;
+        }
       }
 
       res.json({ received: true });
