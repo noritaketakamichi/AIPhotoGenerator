@@ -336,6 +336,32 @@ export function registerRoutes(app: express.Application) {
     }
   });
 
+  // Get user's training models endpoint
+  app.get("/api/models", async (req: Request, res: Response) => {
+    try {
+      if (!req.user?.id) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const models = await db
+        .select({
+          id: training_history.id,
+          name: training_history.name,
+          trainingDataUrl: training_history.training_data_url,
+          configUrl: training_history.config_url,
+          createdAt: training_history.created_at,
+        })
+        .from(training_history)
+        .where(eq(training_history.user_id, req.user.id))
+        .orderBy(desc(training_history.created_at));
+
+      res.json(models);
+    } catch (error) {
+      console.error("Error fetching models:", error);
+      res.status(500).json({ error: "Failed to fetch models" });
+    }
+  });
+
   // Generate image endpoint
   app.post("/api/generate", async (req: Request, res: Response) => {
     try {

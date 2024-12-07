@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { PhotoPreview } from "./PhotoPreview";
 import { UploadStatus } from "./UploadStatus";
+import { ModelSelector } from "./ModelSelector";
 import { Upload } from "lucide-react";
 
 export function PhotoUploader() {
@@ -199,7 +200,17 @@ export function PhotoUploader() {
       {trainingResult && (
         <div className="mt-4 space-y-4">
           <div className="p-4 border rounded-lg bg-muted">
-            <p className="font-medium mb-2">Enter Prompt:</p>
+            <ModelSelector 
+              onModelSelect={(model) => {
+                if (model) {
+                  setTrainingResult({
+                    diffusers_lora_file: { url: model.trainingDataUrl },
+                    config_file: { url: model.configUrl }
+                  });
+                }
+              }} 
+            />
+            <p className="font-medium mb-2 mt-4">Enter Prompt:</p>
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
@@ -214,7 +225,7 @@ export function PhotoUploader() {
                   if (!trainingResult?.diffusers_lora_file?.url) {
                     toast({
                       title: "Error",
-                      description: "Training result not available",
+                      description: "Please select a model first",
                       variant: "destructive",
                     });
                     return;
