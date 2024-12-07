@@ -171,7 +171,7 @@ export function PhotoUploader() {
             <div className="flex items-center justify-between cursor-pointer" onClick={() => setIsCreateModelOpen(!isCreateModelOpen)}>
               <div>
                 <h2 className="text-lg font-semibold">Create model</h2>
-                <p className="text-sm text-muted-foreground">Training Cost: 20 credits</p>
+                <p className="text-sm text-muted-foreground">Cost: 20 credits</p>
               </div>
               <Button variant="ghost" size="sm">
                 {isCreateModelOpen ? "−" : "+"} 
@@ -239,9 +239,7 @@ export function PhotoUploader() {
         {/* Model Selection and Generation Section */}
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">Generate Images</h2>
-          <div className="space-y-1">
-            <div className="text-sm text-muted-foreground">1 credit per image</div>
-          </div>
+          <p className="text-sm text-muted-foreground">1 credit per image</p>
           <div className="p-4 border rounded-lg bg-muted">
             <ModelSelector 
               onModelSelect={(model) => {
