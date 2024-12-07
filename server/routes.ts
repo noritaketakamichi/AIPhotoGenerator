@@ -434,12 +434,26 @@ export function registerRoutes(app: express.Application) {
 
         // Store the generated image in the database
         for (const image of result.data.images) {
-          await db.insert(generated_photos).values({
+          console.log("Attempting to insert generated image:", {
             user_id: req.user.id,
             model_id: modelData.id,
             prompt: prompt,
             image_url: image.url,
           });
+          
+          try {
+            const [insertedPhoto] = await db.insert(generated_photos).values({
+              user_id: req.user.id,
+              model_id: modelData.id,
+              prompt: prompt,
+              image_url: image.url,
+            }).returning();
+            
+            console.log("Successfully inserted generated photo:", insertedPhoto);
+          } catch (error) {
+            console.error("Failed to insert generated photo:", error);
+            throw error;
+          }
         }
 
         res.json(result.data);
