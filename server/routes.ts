@@ -6,7 +6,7 @@ import express, { Request, Response } from "express";
 import multer from "multer";
 import { mkdir, readFile, unlink, readdir } from "fs/promises";
 import { db } from "./db";
-import { uploads, training_models, generated_photos } from "./db/schema";
+import { uploads, training_models, generated_photos, users } from "./db/schema";
 import { eq, desc } from "drizzle-orm";
 import { createZipArchive } from "./utils/archive";
 import { fal } from "@fal-ai/client";
