@@ -7,7 +7,6 @@ export const uploads = pgTable("uploads", {
   zipPath: text("zip_path").notNull(),
   falUrl: text("fal_url"),
   status: text("status").notNull().default("processing"),
-  fileCount: integer("file_count").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull()
 });
