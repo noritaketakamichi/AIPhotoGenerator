@@ -366,12 +366,12 @@ export function registerRoutes(app: express.Application) {
   app.post("/api/generate", async (req: Request, res: Response) => {
     try {
       console.log("Generate endpoint called with:", { body: req.body, user: req.user });
-      const { loraUrl, prompt } = req.body;
+      const { modelId, loraUrl, prompt } = req.body;
 
-      if (!loraUrl || !prompt) {
+      if (!modelId || !loraUrl || !prompt) {
         return res
           .status(400)
-          .json({ error: "LoRA URL and prompt are required" });
+          .json({ error: "Model ID, LoRA URL, and prompt are required" });
       }
 
       const { fal } = await import("@fal-ai/client");
@@ -420,16 +420,16 @@ export function registerRoutes(app: express.Application) {
           };
         }
 
-        // Extract model ID from the LoRA URL
-        // Example URL: https://v3.fal.media/files/penguin/MfKRMr7gp6TqNfttnWt84_pytorch_lora_weights.safetensors
+        // Verify that the model exists and belongs to the user
         const [modelData] = await db
           .select({ id: training_models.id })
           .from(training_models)
-          .where(eq(training_models.training_data_url, loraUrl))
+          .where(eq(training_models.id, modelId))
+          .where(eq(training_models.user_id, req.user.id))
           .limit(1);
 
         if (!modelData) {
-          return res.status(400).json({ error: "Invalid model URL" });
+          return res.status(400).json({ error: "Invalid model ID or unauthorized access" });
         }
 
         // Store the generated image in the database

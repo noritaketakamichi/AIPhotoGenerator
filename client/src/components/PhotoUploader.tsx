@@ -228,7 +228,7 @@ export function PhotoUploader() {
                 disabled={isGenerating}
                 onClick={async () => {
                   try {
-                    if (!trainingResult?.diffusers_lora_file?.url) {
+                    if (!trainingResult?.modelId || !trainingResult?.diffusers_lora_file?.url) {
                       toast({
                         title: "Error",
                         description: "Please select a model first",
@@ -244,6 +244,7 @@ export function PhotoUploader() {
                         "Content-Type": "application/json",
                       },
                       body: JSON.stringify({
+                        modelId: trainingResult.modelId,
                         loraUrl: trainingResult.diffusers_lora_file.url,
                         prompt: prompt,
                       }),
