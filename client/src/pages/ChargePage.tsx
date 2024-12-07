@@ -86,15 +86,31 @@ export default function ChargePage() {
                     }),
                   });
 
-                  const { id: sessionId } = await response.json();
+                  if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to create checkout session');
+                  }
+
+                  const session = await response.json();
                   
+                  if (!session || !session.id) {
+                    throw new Error('Invalid checkout session response');
+                  }
+
                   // Load Stripe.js
                   const stripe = await stripePromise;
+                  if (!stripe) {
+                    throw new Error('Failed to initialize Stripe');
+                  }
                   
                   // Redirect to Stripe Checkout
-                  await stripe?.redirectToCheckout({
-                    sessionId,
+                  const { error } = await stripe.redirectToCheckout({
+                    sessionId: session.id,
                   });
+
+                  if (error) {
+                    throw new Error(error.message);
+                  }
                 } catch (error) {
                   console.error('Payment error:', error);
                   toast({
