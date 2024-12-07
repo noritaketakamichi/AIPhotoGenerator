@@ -141,6 +141,85 @@ export function registerRoutes(app: express.Application) {
       res.json({ success: true });
     });
   });
+
+  // Stripe payment endpoint
+  app.post('/api/create-checkout-session', async (req: Request, res: Response) => {
+    try {
+      if (!req.user?.id) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      const { credits, amount } = req.body;
+      
+      if (!credits || !amount) {
+        return res.status(400).json({ error: 'Credits and amount are required' });
+      }
+
+      const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+      
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: `${credits} Credits`,
+                description: 'Credits for generating AI images',
+              },
+              unit_amount: amount * 100, // Convert to cents
+            },
+            quantity: 1,
+          },
+        ],
+        mode: 'payment',
+        success_url: `${req.headers.origin}/charge/success?session_id={CHECKOUT_SESSION_ID}&credits=${credits}`,
+        cancel_url: `${req.headers.origin}/charge`,
+        metadata: {
+          userId: req.user.id,
+          credits: credits,
+        },
+      });
+
+      res.json({ id: session.id });
+    } catch (error) {
+      console.error('Stripe session creation error:', error);
+      res.status(500).json({ error: 'Failed to create checkout session' });
+    }
+  });
+
+  // Stripe webhook endpoint for successful payments
+  app.post('/api/stripe-webhook', async (req: Request, res: Response) => {
+    const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+    const sig = req.headers['stripe-signature'];
+
+    try {
+      const event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET
+      );
+
+      if (event.type === 'checkout.session.completed') {
+        const session = event.data.object;
+        const userId = session.metadata.userId;
+        const credits = parseInt(session.metadata.credits);
+
+        // Update user credits in database
+        await db
+          .update(users)
+          .set({
+            credit: sql`credit + ${credits}`,
+          })
+          .where(eq(users.id, parseInt(userId)));
+      }
+
+      res.json({ received: true });
+    } catch (error) {
+      console.error('Stripe webhook error:', error);
+      res.status(400).json({ error: 'Webhook signature verification failed' });
+    }
+  });
   // File upload endpoint
   app.post(
     "/api/upload",
