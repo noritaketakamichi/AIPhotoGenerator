@@ -246,6 +246,26 @@ export function registerRoutes(app: express.Application) {
         return res.status(401).json({ error: "Authentication required" });
       }
 
+      // Check if user has enough credits
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, req.user.id));
+
+      if (!user || user.credit < 20) {
+        return res.status(403).json({ 
+          error: "Insufficient credits", 
+          required: 20,
+          available: user?.credit || 0 
+        });
+      }
+
+      // Deduct credits
+      await db
+        .update(users)
+        .set({ credit: user.credit - 20 })
+        .where(eq(users.id, req.user.id));
+
       // Get the next model number for this user
       const [lastModel] = await db
         .select({ name: training_models.name })
@@ -387,6 +407,26 @@ export function registerRoutes(app: express.Application) {
       if (!req.user?.id) {
           return res.status(401).json({ error: "Authentication required" });
         }
+
+        // Check if user has enough credits
+        const [user] = await db
+          .select()
+          .from(users)
+          .where(eq(users.id, req.user.id));
+
+        if (!user || user.credit < 1) {
+          return res.status(403).json({ 
+            error: "Insufficient credits", 
+            required: 1,
+            available: user?.credit || 0 
+          });
+        }
+
+        // Deduct credits
+        await db
+          .update(users)
+          .set({ credit: user.credit - 1 })
+          .where(eq(users.id, req.user.id));
 
         let result;
         if (process.env.AI_GENERATION_API_ENV === "production") {
