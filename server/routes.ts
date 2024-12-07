@@ -1,6 +1,11 @@
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
+import { Request as ExpressRequest } from 'express';
+
+interface Request extends ExpressRequest {
+  rawBody?: Buffer;
+}
 import { dirname } from "path";
 import express, { Request, Response } from "express";
 import multer from "multer";
@@ -172,10 +177,27 @@ export function registerRoutes(app: express.Application) {
       const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
       console.log('4. Webhook secret configured:', webhookSecret ? 'Yes' : 'No');
       
+      // Log request details for debugging
+      console.log('Raw body type:', typeof req.rawBody);
+      console.log('Raw body length:', req.rawBody?.length);
+      console.log('Stripe-Signature header:', sig);
+      
+      if (!webhookSecret) {
+        throw new Error('Webhook secret is not configured');
+      }
+      
+      if (!sig) {
+        throw new Error('No stripe signature found in the request');
+      }
+
+      if (!req.rawBody) {
+        throw new Error('No raw body available');
+      }
+
       const event = stripe.webhooks.constructEvent(
-        req.body,
-        sig || '',
-        webhookSecret || ''
+        req.rawBody,
+        sig,
+        webhookSecret
       );
 
       console.log('5. Successfully constructed webhook event');
