@@ -160,7 +160,7 @@ export function registerRoutes(app: express.Application) {
   });
 
   // Stripe webhook endpoint for successful payments
-  app.post('/api/stripe-webhook', async (req: Request, res: Response) => {
+  app.post('/api/stripe-webhook', express.raw({type: 'application/json'}), async (req: Request, res: Response) => {
     const sig = req.headers['stripe-signature'];
 
     try {
@@ -171,17 +171,29 @@ export function registerRoutes(app: express.Application) {
       );
 
       if (event.type === 'checkout.session.completed') {
-        const session = event.data.object;
-        const userId = session.metadata.userId;
-        const credits = parseInt(session.metadata.credits);
+        const session = event.data.object as Stripe.Checkout.Session;
+        console.log('Processing completed checkout session:', session.id);
+        
+        const userId = session.metadata?.userId;
+        const credits = parseInt(session.metadata?.credits || '0');
+
+        if (!userId || !credits) {
+          console.error('Missing userId or credits in session metadata');
+          return res.status(400).json({ error: 'Invalid session metadata' });
+        }
+
+        console.log(`Updating credits for user ${userId}: +${credits}`);
 
         // Update user credits in database
-        await db
+        const [updatedUser] = await db
           .update(users)
           .set({
             credit: sql`credit + ${credits}`,
           })
-          .where(eq(users.id, parseInt(userId)));
+          .where(eq(users.id, parseInt(userId)))
+          .returning();
+
+        console.log('Updated user credits:', updatedUser);
       }
 
       res.json({ received: true });
