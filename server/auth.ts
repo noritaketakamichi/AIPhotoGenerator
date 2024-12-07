@@ -20,6 +20,9 @@ declare module 'express' {
     credit: number;
     created_at: Date;
   }
+  interface Request {
+    user?: User;
+  }
 }
 
 // Configure Passport's Google Strategy

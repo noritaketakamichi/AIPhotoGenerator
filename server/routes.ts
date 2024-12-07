@@ -6,7 +6,7 @@ import express, { Request, Response } from "express";
 import multer from "multer";
 import { mkdir, readFile, unlink, readdir } from "fs/promises";
 import { db } from "./db";
-import { uploads, training_models } from "./db/schema";
+import { uploads, training_models, generated_photos } from "./db/schema";
 import { eq, desc } from "drizzle-orm";
 import { createZipArchive } from "./utils/archive";
 import { fal } from "@fal-ai/client";
@@ -365,6 +365,7 @@ export function registerRoutes(app: express.Application) {
   // Generate image endpoint
   app.post("/api/generate", async (req: Request, res: Response) => {
     try {
+      console.log("Generate endpoint called with:", { body: req.body, user: req.user });
       const { loraUrl, prompt } = req.body;
 
       if (!loraUrl || !prompt) {
@@ -378,40 +379,70 @@ export function registerRoutes(app: express.Application) {
         credentials: process.env.FAL_AI_API_KEY,
       });
 
-      if (process.env.AI_GENERATION_API_ENV === "production") {
-        const result = await fal.subscribe("fal-ai/flux-lora", {
-          input: {
-            loras: [
-              {
-                path: loraUrl,
-                scale: 1,
-              },
-            ],
-            prompt: prompt,
-            embeddings: [],
-            image_size: "square_hd",
-            model_name: null,
-            enable_safety_checker: true,
-          },
-          logs: true,
-          onQueueUpdate: (update) => {
-            if (update.status === "IN_PROGRESS") {
-              update.logs.map((log) => log.message).forEach(console.log);
-            }
-          },
-        });
-        res.json(result.data);
-      } else {
-        // Mock response for development
-        res.json({
-          images: [
-            {
-              url: "https://v3.fal.media/files/mock/generated_image.png",
-              file_name: "generated_image.png",
+      if (!req.user?.id) {
+          return res.status(401).json({ error: "Authentication required" });
+        }
+
+        let result;
+        if (process.env.AI_GENERATION_API_ENV === "production") {
+          result = await fal.subscribe("fal-ai/flux-lora", {
+            input: {
+              loras: [
+                {
+                  path: loraUrl,
+                  scale: 1,
+                },
+              ],
+              prompt: prompt,
+              embeddings: [],
+              image_size: "square_hd",
+              model_name: null,
+              enable_safety_checker: true,
             },
-          ],
-        });
-      }
+            logs: true,
+            onQueueUpdate: (update) => {
+              if (update.status === "IN_PROGRESS") {
+                update.logs.map((log) => log.message).forEach(console.log);
+              }
+            },
+          });
+        } else {
+          // Mock response for development
+          result = {
+            data: {
+              images: [
+                {
+                  url: "https://v3.fal.media/files/mock/generated_image.png",
+                  file_name: "generated_image.png",
+                },
+              ],
+            },
+          };
+        }
+
+        // Extract model ID from the LoRA URL
+        // Example URL: https://v3.fal.media/files/penguin/MfKRMr7gp6TqNfttnWt84_pytorch_lora_weights.safetensors
+        const [modelData] = await db
+          .select({ id: training_models.id })
+          .from(training_models)
+          .where(eq(training_models.training_data_url, loraUrl))
+          .limit(1);
+
+        if (!modelData) {
+          return res.status(400).json({ error: "Invalid model URL" });
+        }
+
+        // Store the generated image in the database
+        for (const image of result.data.images) {
+          await db.insert(generated_photos).values({
+            user_id: req.user.id,
+            model_id: modelData.id,
+            prompt: prompt,
+            image_url: image.url,
+          });
+        }
+
+        res.json(result.data);
     } catch (error) {
       console.error("Generation error:", error);
       res.status(500).json({ error: "Image generation failed" });
