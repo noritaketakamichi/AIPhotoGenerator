@@ -365,8 +365,13 @@ export function registerRoutes(app: express.Application) {
   // Generate image endpoint
   app.post("/api/generate", async (req: Request, res: Response) => {
     try {
-      console.log("Generate endpoint called with:", { body: req.body, user: req.user });
       const { modelId, loraUrl, prompt } = req.body;
+      console.log("Generate endpoint called with:", { 
+        modelId,
+        loraUrl,
+        prompt,
+        userId: req.user?.id 
+      });
 
       if (!modelId || !loraUrl || !prompt) {
         return res
@@ -444,7 +449,7 @@ export function registerRoutes(app: express.Application) {
           try {
             const [insertedPhoto] = await db.insert(generated_photos).values({
               user_id: req.user.id,
-              model_id: modelData.id,
+              model_id: parseInt(modelId),
               prompt: prompt,
               image_url: image.url,
             }).returning();
