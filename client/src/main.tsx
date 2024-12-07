@@ -8,12 +8,14 @@ import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "./contexts/AuthContext";
 import Home from "./pages/Home";
 import AuthPage from "./pages/AuthPage";
+import GalleryPage from "./pages/GalleryPage";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/auth" component={AuthPage} />
+      <Route path="/gallery" component={GalleryPage} />
       <Route>404 Page Not Found</Route>
     </Switch>
   );
