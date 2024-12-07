@@ -16,7 +16,9 @@ export function PhotoUploader() {
   const [falUrl, setFalUrl] = useState<string | null>(null);
   const [trainingResult, setTrainingResult] = useState<any>(null);
   const [prompt, setPrompt] = useState<string>("");
-  const [generatedImages, setGeneratedImages] = useState<Array<{ url: string; file_name: string }>>([]);
+  const [generatedImages, setGeneratedImages] = useState<
+    Array<{ url: string; file_name: string }>
+  >([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCreateModelOpen, setIsCreateModelOpen] = useState(true);
   const { toast } = useToast();
@@ -115,7 +117,8 @@ export function PhotoUploader() {
         if (error.message?.includes("Insufficient credits")) {
           toast({
             title: "Not Enough Credits",
-            description: "Please charge your credits & enjoy generating photos! 🎨",
+            description:
+              "Please charge your credits & enjoy generating photos! 🎨",
             variant: "default",
           });
         } else {
@@ -168,13 +171,18 @@ export function PhotoUploader() {
         {/* Create Model Section */}
         <div className="space-y-4 border rounded-lg p-4">
           <div>
-            <div className="flex items-center justify-between cursor-pointer" onClick={() => setIsCreateModelOpen(!isCreateModelOpen)}>
+            <div
+              className="flex items-center justify-between cursor-pointer"
+              onClick={() => setIsCreateModelOpen(!isCreateModelOpen)}
+            >
               <div>
                 <h2 className="text-lg font-semibold">Create model</h2>
-                <p className="text-sm text-muted-foreground">Cost: 20 credits</p>
+                <p className="text-sm text-muted-foreground">
+                  Cost: 20 credits
+                </p>
               </div>
               <Button variant="ghost" size="sm">
-                {isCreateModelOpen ? "−" : "+"} 
+                {isCreateModelOpen ? "−" : "+"}
               </Button>
             </div>
           </div>
@@ -205,7 +213,9 @@ export function PhotoUploader() {
                         key={index}
                         file={file}
                         onRemove={() => {
-                          setFiles((prev) => prev.filter((_, i) => i !== index));
+                          setFiles((prev) =>
+                            prev.filter((_, i) => i !== index),
+                          );
                         }}
                       />
                     ))}
@@ -224,9 +234,13 @@ export function PhotoUploader() {
 
                       <Button
                         onClick={handleUpload}
-                        disabled={files.length !== 4 || uploadMutation.isPending}
+                        disabled={
+                          files.length !== 4 || uploadMutation.isPending
+                        }
                       >
-                        {uploadMutation.isPending ? "Processing..." : "Upload photos"}
+                        {uploadMutation.isPending
+                          ? "Processing..."
+                          : "Create Model"}
                       </Button>
                     </div>
                   </div>
@@ -241,17 +255,17 @@ export function PhotoUploader() {
           <h2 className="text-lg font-semibold">Generate Images</h2>
           <p className="text-sm text-muted-foreground">1 credit per image</p>
           <div className="p-4 border rounded-lg bg-muted">
-            <ModelSelector 
+            <ModelSelector
               onModelSelect={(model) => {
                 if (model) {
                   console.log("Selected model:", model);
                   setTrainingResult({
                     modelId: model.id,
                     diffusers_lora_file: { url: model.trainingDataUrl },
-                    config_file: { url: model.configUrl }
+                    config_file: { url: model.configUrl },
                   });
                 }
-              }} 
+              }}
             />
             <div className="mt-4 space-y-2">
               <label className="text-sm font-medium">Enter Prompt:</label>
@@ -267,10 +281,13 @@ export function PhotoUploader() {
                 onClick={async () => {
                   try {
                     console.log("Current trainingResult:", trainingResult);
-                    if (!trainingResult?.modelId || !trainingResult?.diffusers_lora_file?.url) {
+                    if (
+                      !trainingResult?.modelId ||
+                      !trainingResult?.diffusers_lora_file?.url
+                    ) {
                       console.log("Model validation failed:", {
                         modelId: trainingResult?.modelId,
-                        loraUrl: trainingResult?.diffusers_lora_file?.url
+                        loraUrl: trainingResult?.diffusers_lora_file?.url,
                       });
                       toast({
                         title: "Error",
@@ -279,7 +296,7 @@ export function PhotoUploader() {
                       });
                       return;
                     }
-                    
+
                     setIsGenerating(true);
                     const response = await fetch("/api/generate", {
                       method: "POST",
@@ -295,10 +312,14 @@ export function PhotoUploader() {
 
                     if (!response.ok) {
                       const errorData = await response.json();
-                      if (response.status === 403 && errorData.error === "Insufficient credits") {
+                      if (
+                        response.status === 403 &&
+                        errorData.error === "Insufficient credits"
+                      ) {
                         toast({
                           title: "Not Enough Credits",
-                          description: "Please charge your credits & enjoy generating photos! 🎨",
+                          description:
+                            "Please charge your credits & enjoy generating photos! 🎨",
                           variant: "default",
                         });
                         return;
@@ -369,10 +390,10 @@ export function PhotoUploader() {
                       onClick={(e) => {
                         e.preventDefault();
                         fetch(image.url)
-                          .then(response => response.blob())
-                          .then(blob => {
+                          .then((response) => response.blob())
+                          .then((blob) => {
                             const url = window.URL.createObjectURL(blob);
-                            const a = document.createElement('a');
+                            const a = document.createElement("a");
                             a.href = url;
                             a.download = `generated-${index + 1}.png`;
                             document.body.appendChild(a);

@@ -41,7 +41,7 @@ export default function Home() {
             <PhotoUploader />
           ) : (
             <div className="text-center p-4">
-              <p className="text-muted-foreground">Please sign in to upload photos</p>
+              <p className="text-muted-foreground">Please sign in to enjoy generating photos!</p>
             </div>
           )}
         </Card>
