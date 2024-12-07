@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -8,6 +9,7 @@ interface GeneratedPhoto {
   prompt: string;
   image_url: string;
   created_at: string;
+  model_name: string;
 }
 
 export default function GalleryPage() {
@@ -55,10 +57,34 @@ export default function GalleryPage() {
                   alt={photo.prompt}
                   className="w-full rounded-lg shadow-md"
                 />
-                <p className="text-sm text-muted-foreground">{photo.prompt}</p>
-                <p className="text-xs text-muted-foreground">
-                  {new Date(photo.created_at).toLocaleDateString()}
-                </p>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">{photo.prompt}</p>
+                  <p className="text-xs font-medium">Model: {photo.model_name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(photo.created_at).toLocaleDateString()}
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      fetch(photo.image_url)
+                        .then(response => response.blob())
+                        .then(blob => {
+                          const url = window.URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `${photo.model_name}-${photo.id}.png`;
+                          document.body.appendChild(a);
+                          a.click();
+                          window.URL.revokeObjectURL(url);
+                          document.body.removeChild(a);
+                        });
+                    }}
+                  >
+                    Download
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
