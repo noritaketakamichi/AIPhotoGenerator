@@ -521,8 +521,13 @@ export function registerRoutes(app: express.Application) {
           prompt: generated_photos.prompt,
           image_url: generated_photos.image_url,
           created_at: generated_photos.created_at,
+          model_name: training_models.name,
         })
         .from(generated_photos)
+        .leftJoin(
+          training_models,
+          eq(generated_photos.model_id, training_models.id)
+        )
         .where(eq(generated_photos.user_id, req.user.id))
         .orderBy(desc(generated_photos.created_at));
 
