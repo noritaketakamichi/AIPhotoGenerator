@@ -142,22 +142,6 @@ export function PhotoUploader() {
 
   return (
     <div className="space-y-6">
-      <div
-        {...getRootProps()}
-        className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-          ${isDragActive ? "border-primary bg-primary/5" : "border-border"}`}
-      >
-        <input {...getInputProps()} />
-        <div className="space-y-2">
-          <Upload className="w-12 h-12 mx-auto text-muted-foreground" />
-          <div className="text-lg font-medium">
-            Drag photos here or click to browse
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Upload exactly 4 photos (max 5MB each)
-          </p>
-        </div>
-      </div>
 
       <div className="mt-8 space-y-8">
         {/* Upload Section */}
