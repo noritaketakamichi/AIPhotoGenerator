@@ -161,22 +161,35 @@ export function registerRoutes(app: express.Application) {
 
   // Stripe webhook endpoint for successful payments
   app.post('/api/stripe-webhook', express.raw({type: 'application/json'}), async (req: Request, res: Response) => {
-    console.log('Received webhook event');
+    console.log('=== Stripe Webhook Debug Logs ===');
+    console.log('1. Received webhook event');
+    console.log('Headers:', JSON.stringify(req.headers, null, 2));
     const sig = req.headers['stripe-signature'];
+    console.log('2. Stripe signature:', sig ? 'Present' : 'Missing');
 
     try {
+      console.log('3. Attempting to construct webhook event');
+      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+      console.log('4. Webhook secret configured:', webhookSecret ? 'Yes' : 'No');
+      
       const event = stripe.webhooks.constructEvent(
         req.body,
         sig || '',
-        process.env.STRIPE_WEBHOOK_SECRET || ''
+        webhookSecret || ''
       );
 
-      console.log('Webhook event type:', event.type);
+      console.log('5. Successfully constructed webhook event');
+      console.log('6. Event type:', event.type);
 
       if (event.type === 'checkout.session.completed') {
         const session = event.data.object as Stripe.Checkout.Session;
-        console.log('Processing completed checkout session:', session.id);
-        console.log('Session metadata:', session.metadata);
+        console.log('7. Processing completed checkout session');
+        console.log('8. Session details:', {
+          id: session.id,
+          metadata: session.metadata,
+          customer: session.customer,
+          amount_total: session.amount_total,
+        });
         
         const userId = session.metadata?.userId;
         const credits = parseInt(session.metadata?.credits || '0');
@@ -189,35 +202,75 @@ export function registerRoutes(app: express.Application) {
         console.log(`Updating credits for user ${userId}: +${credits}`);
 
         try {
+          console.log('9. Starting credit update process');
+          console.log('10. User ID:', userId);
+          console.log('11. Credits to add:', credits);
+
           // First get current user credits
           const [currentUser] = await db
             .select({ credit: users.credit })
             .from(users)
             .where(eq(users.id, parseInt(userId)));
 
-          console.log('Current user credits:', currentUser?.credit);
+          console.log('12. Current user data:', currentUser);
+          
+          if (!currentUser) {
+            console.error('13. Error: User not found in database');
+            return res.status(404).json({ error: 'User not found' });
+          }
+
+          const newCreditAmount = (currentUser.credit || 0) + credits;
+          console.log('14. Calculating new credit amount:', {
+            current: currentUser.credit,
+            toAdd: credits,
+            newTotal: newCreditAmount
+          });
 
           // Update user credits in database
           const [updatedUser] = await db
             .update(users)
             .set({
-              credit: (currentUser?.credit || 0) + credits,
+              credit: newCreditAmount,
             })
             .where(eq(users.id, parseInt(userId)))
             .returning();
 
-          console.log('Updated user credits:', updatedUser);
+          console.log('15. Credit update complete:', {
+            userId: userId,
+            oldCredit: currentUser.credit,
+            addedCredit: credits,
+            newCredit: updatedUser.credit
+          });
         } catch (dbError) {
-          console.error('Database error:', dbError);
+          console.error('16. Database error during credit update:', dbError);
+          console.error('Error details:', {
+            name: dbError.name,
+            message: dbError.message,
+            stack: dbError.stack
+          });
           throw dbError;
         }
       }
 
+      console.log('17. Webhook processing completed successfully');
       res.json({ received: true });
     } catch (error) {
-      console.error('Stripe webhook error:', error);
-      res.status(400).json({ error: 'Webhook signature verification failed' });
+      console.error('18. Webhook processing error:', {
+        name: error.name,
+        message: error.message,
+        type: error.type,
+        stack: error.stack
+      });
+      
+      if (error.type === 'StripeSignatureVerificationError') {
+        console.error('19. Signature verification failed');
+        return res.status(400).json({ error: 'Webhook signature verification failed' });
+      }
+      
+      console.error('20. Unexpected error in webhook handler');
+      res.status(500).json({ error: 'Internal server error in webhook handler' });
     }
+    console.log('=== End Stripe Webhook Debug Logs ===');
   });
 
   // File upload endpoint
