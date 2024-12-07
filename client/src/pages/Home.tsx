@@ -19,7 +19,12 @@ export default function Home() {
               <div className="space-y-2">
                 <p>Welcome, {user.email}</p>
                 <p className="text-sm text-muted-foreground">Credits Available: {user.credit}</p>
-                <Button onClick={logout} variant="outline">Sign Out</Button>
+                <div className="space-x-2">
+                  <Button onClick={logout} variant="outline">Sign Out</Button>
+                  <Link href="/gallery">
+                    <Button variant="outline">Go to Gallery</Button>
+                  </Link>
+                </div>
               </div>
             </div>
           ) : (

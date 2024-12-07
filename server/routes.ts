@@ -467,4 +467,29 @@ export function registerRoutes(app: express.Application) {
       res.status(500).json({ error: "Image generation failed" });
     }
   });
+
+  // Get user's generated photos endpoint
+  app.get("/api/photos", async (req: Request, res: Response) => {
+    try {
+      if (!req.user?.id) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const photos = await db
+        .select({
+          id: generated_photos.id,
+          prompt: generated_photos.prompt,
+          image_url: generated_photos.image_url,
+          created_at: generated_photos.created_at,
+        })
+        .from(generated_photos)
+        .where(eq(generated_photos.user_id, req.user.id))
+        .orderBy(desc(generated_photos.created_at));
+
+      res.json(photos);
+    } catch (error) {
+      console.error("Error fetching photos:", error);
+      res.status(500).json({ error: "Failed to fetch photos" });
+    }
+  });
 }
