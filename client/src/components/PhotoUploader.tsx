@@ -111,12 +111,11 @@ export function PhotoUploader() {
         await refreshUserData(); // Refresh credits after successful training
       } catch (error: any) {
         console.error("Training error:", error);
-        const response = error.response;
-        if (response?.status === 403 && response?.data?.error === "Insufficient credits") {
+        if (error.message?.includes("Insufficient credits")) {
           toast({
-            title: "Insufficient Credits",
-            description: `You need ${response.data.required} credits (Available: ${response.data.available})`,
-            variant: "destructive",
+            title: "Not Enough Credits",
+            description: "Please charge your credits & enjoy generating photos! 🎨",
+            variant: "default",
           });
         } else {
           toast({
@@ -276,7 +275,12 @@ export function PhotoUploader() {
                     if (!response.ok) {
                       const errorData = await response.json();
                       if (response.status === 403 && errorData.error === "Insufficient credits") {
-                        throw new Error(`Insufficient credits. You need ${errorData.required} credits (Available: ${errorData.available})`);
+                        toast({
+                          title: "Not Enough Credits",
+                          description: "Please charge your credits & enjoy generating photos! 🎨",
+                          variant: "default",
+                        });
+                        return;
                       }
                       throw new Error(errorData.error || "Generation failed");
                     }
