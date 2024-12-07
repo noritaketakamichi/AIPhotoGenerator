@@ -30,22 +30,19 @@ const app = express();
 // Trust proxy settings for secure HTTPS handling
 app.set('trust proxy', 1);
 
-// Configure middleware
-app.use((req, res, next) => {
-  if (req.originalUrl === '/api/stripe-webhook') {
-    next();
-  } else {
-    express.json()(req, res, next);
+// Configure body parsing middleware
+const rawBodySaver = (req: Request, res: Response, buf: Buffer, encoding: string) => {
+  if (buf && buf.length) {
+    (req as any).rawBody = buf;
   }
-});
+};
 
+// Parse raw body for Stripe webhook
+app.use('/api/stripe-webhook', express.raw({ type: 'application/json', verify: rawBodySaver }));
+
+// Parse JSON for all other routes
+app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-
-// Special handling for Stripe webhook route
-app.post('/api/stripe-webhook', express.raw({type: 'application/json'}), (req, res, next) => {
-  req.rawBody = req.body;
-  next();
-});
 
 app.use((req, res, next) => {
   const start = Date.now();
