@@ -47,7 +47,14 @@ export function ModelSelector({ onModelSelect }: ModelSelectorProps) {
         }}
         onValueChange={(value) => {
           const selectedModel = models.find((m) => m.id.toString() === value);
-          onModelSelect(selectedModel || null);
+          if (selectedModel) {
+            onModelSelect({
+              ...selectedModel,
+              modelId: selectedModel.id
+            });
+          } else {
+            onModelSelect(null);
+          }
         }}
       >
         <SelectTrigger>
