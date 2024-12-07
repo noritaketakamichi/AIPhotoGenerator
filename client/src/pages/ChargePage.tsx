@@ -4,13 +4,12 @@ import { loadStripe } from "@stripe/stripe-js";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
-// Initialize Stripe
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY || '');
-
-// Verify Stripe initialization
-if (!import.meta.env.VITE_STRIPE_PUBLIC_KEY) {
+// Initialize Stripe with public key
+const STRIPE_PUBLIC_KEY = import.meta.env.VITE_STRIPE_PUBLIC_KEY;
+if (!STRIPE_PUBLIC_KEY) {
   console.error('Stripe public key is not set in environment variables');
 }
+const stripePromise = loadStripe(STRIPE_PUBLIC_KEY);
 import { Link } from "wouter";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
