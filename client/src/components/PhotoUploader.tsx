@@ -19,7 +19,7 @@ export function PhotoUploader() {
   const [generatedImages, setGeneratedImages] = useState<Array<{ url: string; file_name: string }>>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
-  const { refreshUserData } = useAuth();
+  const { user, refreshUserData } = useAuth();
 
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
@@ -148,6 +148,16 @@ export function PhotoUploader() {
       return;
     }
 
+    // Check if user has enough credits (20 for training)
+    if (!user?.credit || user.credit < 20) {
+      toast({
+        title: "Not Enough Credits",
+        description: "Please charge your credits & enjoy generating photos! 🎨",
+        variant: "default",
+      });
+      return;
+    }
+
     uploadMutation.mutate(files);
   };
 
@@ -204,7 +214,7 @@ export function PhotoUploader() {
                     onClick={handleUpload}
                     disabled={files.length !== 4 || uploadMutation.isPending}
                   >
-                    {uploadMutation.isPending ? "Processing..." : "Create ZIP"}
+                    {uploadMutation.isPending ? "Processing..." : "Upload photos"}
                   </Button>
                 </div>
               </div>
