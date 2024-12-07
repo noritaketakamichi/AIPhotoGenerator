@@ -18,6 +18,7 @@ export function PhotoUploader() {
   const [prompt, setPrompt] = useState<string>("");
   const [generatedImages, setGeneratedImages] = useState<Array<{ url: string; file_name: string }>>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isCreateModelOpen, setIsCreateModelOpen] = useState(true);
   const { toast } = useToast();
   const { user, refreshUserData } = useAuth();
 
@@ -163,61 +164,69 @@ export function PhotoUploader() {
 
   return (
     <div className="space-y-6">
-
       <div className="mt-8 space-y-8">
-        {/* Upload Section */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Upload Photos</h2>
-          <div
-            {...getRootProps()}
-            className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-              ${isDragActive ? "border-primary bg-primary/5" : "border-border"}`}
-          >
-            <input {...getInputProps()} />
-            <div className="space-y-2">
-              <Upload className="w-12 h-12 mx-auto text-muted-foreground" />
-              <div className="text-lg font-medium">
-                Drag photos here or click to browse
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Upload exactly 4 photos (max 5MB each)
-              </p>
-            </div>
+        {/* Create Model Section */}
+        <div className="space-y-4 border rounded-lg p-4">
+          <div className="flex items-center justify-between cursor-pointer" onClick={() => setIsCreateModelOpen(!isCreateModelOpen)}>
+            <h2 className="text-lg font-semibold">Create model</h2>
+            <Button variant="ghost" size="sm">
+              {isCreateModelOpen ? "−" : "+"} 
+            </Button>
           </div>
-
-          {files.length > 0 && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {files.map((file, index) => (
-                  <PhotoPreview
-                    key={index}
-                    file={file}
-                    onRemove={() => {
-                      setFiles((prev) => prev.filter((_, i) => i !== index));
-                    }}
-                  />
-                ))}
-              </div>
-
-              <div className="space-y-2">
-                {uploadMutation.isPending && (
-                  <Progress value={uploadProgress} className="w-full" />
-                )}
-
-                <div className="flex justify-between items-center">
-                  <UploadStatus
-                    filesCount={files.length}
-                    isUploading={uploadMutation.isPending}
-                  />
-
-                  <Button
-                    onClick={handleUpload}
-                    disabled={files.length !== 4 || uploadMutation.isPending}
-                  >
-                    {uploadMutation.isPending ? "Processing..." : "Upload photos"}
-                  </Button>
+          {isCreateModelOpen && (
+            <div>
+              <div
+                {...getRootProps()}
+                className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
+                  ${isDragActive ? "border-primary bg-primary/5" : "border-border"}`}
+              >
+                <input {...getInputProps()} />
+                <div className="space-y-2">
+                  <Upload className="w-12 h-12 mx-auto text-muted-foreground" />
+                  <div className="text-lg font-medium">
+                    Drag photos here or click to browse
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Upload exactly 4 photos (max 5MB each)
+                  </p>
                 </div>
               </div>
+
+              {files.length > 0 && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {files.map((file, index) => (
+                      <PhotoPreview
+                        key={index}
+                        file={file}
+                        onRemove={() => {
+                          setFiles((prev) => prev.filter((_, i) => i !== index));
+                        }}
+                      />
+                    ))}
+                  </div>
+
+                  <div className="space-y-2">
+                    {uploadMutation.isPending && (
+                      <Progress value={uploadProgress} className="w-full" />
+                    )}
+
+                    <div className="flex justify-between items-center">
+                      <UploadStatus
+                        filesCount={files.length}
+                        isUploading={uploadMutation.isPending}
+                      />
+
+                      <Button
+                        onClick={handleUpload}
+                        disabled={files.length !== 4 || uploadMutation.isPending}
+                      >
+                        {uploadMutation.isPending ? "Processing..." : "Upload photos"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
