@@ -106,13 +106,22 @@ export function PhotoUploader() {
           title: "Training Complete",
           description: "AI model training finished successfully",
         });
-      } catch (error) {
+      } catch (error: any) {
         console.error("Training error:", error);
-        toast({
-          title: "Training Failed",
-          description: "Failed to train AI model",
-          variant: "destructive",
-        });
+        const response = error.response;
+        if (response?.status === 403 && response?.data?.error === "Insufficient credits") {
+          toast({
+            title: "Insufficient Credits",
+            description: `You need ${response.data.required} credits (Available: ${response.data.available})`,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Training Failed",
+            description: "Failed to train AI model",
+            variant: "destructive",
+          });
+        }
       }
 
       setFiles([]);
@@ -204,6 +213,10 @@ export function PhotoUploader() {
         {/* Model Selection and Generation Section */}
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">Generate Images</h2>
+          <div className="space-y-1">
+            <div className="text-sm text-muted-foreground">Training Cost: 20 credits</div>
+            <div className="text-sm text-muted-foreground">Generation Cost: 1 credit per image</div>
+          </div>
           <div className="p-4 border rounded-lg bg-muted">
             <ModelSelector 
               onModelSelect={(model) => {
@@ -258,7 +271,11 @@ export function PhotoUploader() {
                     });
 
                     if (!response.ok) {
-                      throw new Error("Generation failed");
+                      const errorData = await response.json();
+                      if (response.status === 403 && errorData.error === "Insufficient credits") {
+                        throw new Error(`Insufficient credits. You need ${errorData.required} credits (Available: ${errorData.available})`);
+                      }
+                      throw new Error(errorData.error || "Generation failed");
                     }
 
                     const result = await response.json();
