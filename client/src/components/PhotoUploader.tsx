@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { PhotoPreview } from "./PhotoPreview";
 import { UploadStatus } from "./UploadStatus";
 import { ModelSelector } from "./ModelSelector";
-import { Upload } from "lucide-react";
+import { Upload, Loader2 } from "lucide-react";
 
 export function PhotoUploader() {
   const [files, setFiles] = useState<File[]>([]);
@@ -197,8 +197,67 @@ export function PhotoUploader() {
 
       
 
-      {trainingResult && (
-        <div className="mt-4 space-y-4">
+      <div className="mt-8 space-y-8">
+        {/* Upload Section */}
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">Upload Photos</h2>
+          <div
+            {...getRootProps()}
+            className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
+              ${isDragActive ? "border-primary bg-primary/5" : "border-border"}`}
+          >
+            <input {...getInputProps()} />
+            <div className="space-y-2">
+              <Upload className="w-12 h-12 mx-auto text-muted-foreground" />
+              <div className="text-lg font-medium">
+                Drag photos here or click to browse
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Upload exactly 4 photos (max 5MB each)
+              </p>
+            </div>
+          </div>
+
+          {files.length > 0 && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {files.map((file, index) => (
+                  <PhotoPreview
+                    key={index}
+                    file={file}
+                    onRemove={() => {
+                      setFiles((prev) => prev.filter((_, i) => i !== index));
+                    }}
+                  />
+                ))}
+              </div>
+
+              <div className="space-y-2">
+                {uploadMutation.isPending && (
+                  <Progress value={uploadProgress} className="w-full" />
+                )}
+
+                <div className="flex justify-between items-center">
+                  <UploadStatus
+                    filesCount={files.length}
+                    isUploading={uploadMutation.isPending}
+                  />
+
+                  <Button
+                    onClick={handleUpload}
+                    disabled={files.length !== 4 || uploadMutation.isPending}
+                  >
+                    {uploadMutation.isPending ? "Processing..." : "Create ZIP"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Model Selection and Generation Section */}
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">Generate Images</h2>
           <div className="p-4 border rounded-lg bg-muted">
             <ModelSelector 
               onModelSelect={(model) => {
@@ -210,124 +269,128 @@ export function PhotoUploader() {
                 }
               }} 
             />
-            <p className="font-medium mb-2 mt-4">Enter Prompt:</p>
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              className="w-full p-4 border rounded-md min-h-[120px] resize-y"
-              placeholder="Enter your prompt here..."
-            />
-            <button
-              className="mt-2 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90"
-              disabled={isGenerating}
-              onClick={async () => {
-                try {
-                  if (!trainingResult?.diffusers_lora_file?.url) {
+            <div className="mt-4 space-y-2">
+              <label className="text-sm font-medium">Enter Prompt:</label>
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                className="w-full p-4 border rounded-md min-h-[120px] resize-y"
+                placeholder="Enter your prompt here..."
+              />
+              <Button
+                className="w-full"
+                disabled={isGenerating}
+                onClick={async () => {
+                  try {
+                    if (!trainingResult?.diffusers_lora_file?.url) {
+                      toast({
+                        title: "Error",
+                        description: "Please select a model first",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    
+                    setIsGenerating(true);
+                    const response = await fetch("/api/generate", {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({
+                        loraUrl: trainingResult.diffusers_lora_file.url,
+                        prompt: prompt,
+                      }),
+                    });
+
+                    if (!response.ok) {
+                      throw new Error("Generation failed");
+                    }
+
+                    const result = await response.json();
+                    if (result.images && result.images.length > 0) {
+                      setGeneratedImages(result.images);
+                    }
+
+                    toast({
+                      title: "Success",
+                      description: "Image generated successfully",
+                    });
+                  } catch (error) {
+                    console.error("Generation error:", error);
                     toast({
                       title: "Error",
-                      description: "Please select a model first",
+                      description: "Failed to generate image",
                       variant: "destructive",
                     });
-                    return;
+                  } finally {
+                    setIsGenerating(false);
                   }
-                  
-                  setIsGenerating(true);
-                  const response = await fetch("/api/generate", {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                      loraUrl: trainingResult.diffusers_lora_file.url,
-                      prompt: prompt,
-                    }),
-                  });
-
-                  if (!response.ok) {
-                    throw new Error("Generation failed");
-                  }
-
-                  const result = await response.json();
-                  if (result.images && result.images.length > 0) {
-                    setGeneratedImages(result.images);
-                  }
-
-                  toast({
-                    title: "Success",
-                    description: "Image generated successfully",
-                  });
-                } catch (error) {
-                  console.error("Generation error:", error);
-                  toast({
-                    title: "Error",
-                    description: "Failed to generate image",
-                    variant: "destructive",
-                  });
-                } finally {
-                  setIsGenerating(false);
-                }
-              }}
-            >
-              {isGenerating ? (
-                <>
-                  <span className="animate-pulse">Generating...</span>
-                </>
-              ) : (
-                "Submit"
-              )}
-            </button>
-          </div>
-          {generatedImages.length > 0 && (
-            <div className="mt-4 space-y-4">
-              <h3 className="text-lg font-semibold">Generated Images</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {generatedImages.map((image, index) => (
-                  <div key={index} className="border rounded-lg p-2">
-                    <img
-                      src={image.url}
-                      alt={`Generated ${index + 1}`}
-                      className="w-full h-auto rounded-lg"
-                    />
-                    <div className="flex justify-between mt-2 px-2">
-                      <a
-                        href={image.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline"
-                      >
-                        Open Image
-                      </a>
-                      <a
-                        href={image.url}
-                        download={`generated-${index + 1}.png`}
-                        className="text-primary hover:underline"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          // Fetch the image and create a download link
-                          fetch(image.url)
-                            .then(response => response.blob())
-                            .then(blob => {
-                              const url = window.URL.createObjectURL(blob);
-                              const a = document.createElement('a');
-                              a.href = url;
-                              a.download = `generated-${index + 1}.png`;
-                              document.body.appendChild(a);
-                              a.click();
-                              window.URL.revokeObjectURL(url);
-                              document.body.removeChild(a);
-                            });
-                        }}
-                      >
-                        Download
-                      </a>
-                    </div>
+                }}
+              >
+                {isGenerating ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Generating...</span>
                   </div>
-                ))}
-              </div>
+                ) : (
+                  "Generate Image"
+                )}
+              </Button>
             </div>
-          )}
+          </div>
         </div>
-      )}
+
+        {/* Generated Images Section */}
+        {generatedImages.length > 0 && (
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold">Generated Images</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {generatedImages.map((image, index) => (
+                <div key={index} className="border rounded-lg p-2">
+                  <img
+                    src={image.url}
+                    alt={`Generated ${index + 1}`}
+                    className="w-full h-auto rounded-lg"
+                  />
+                  <div className="flex justify-between mt-2 px-2">
+                    <a
+                      href={image.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline"
+                    >
+                      Open Image
+                    </a>
+                    <a
+                      href={image.url}
+                      download={`generated-${index + 1}.png`}
+                      className="text-primary hover:underline"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        fetch(image.url)
+                          .then(response => response.blob())
+                          .then(blob => {
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `generated-${index + 1}.png`;
+                            document.body.appendChild(a);
+                            a.click();
+                            window.URL.revokeObjectURL(url);
+                            document.body.removeChild(a);
+                          });
+                      }}
+                    >
+                      Download
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

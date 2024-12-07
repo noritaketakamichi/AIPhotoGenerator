@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import {
   Select,
   SelectContent,
@@ -21,21 +20,24 @@ interface ModelSelectorProps {
 }
 
 export function ModelSelector({ onModelSelect }: ModelSelectorProps) {
-  const { data: models, isLoading } = useQuery<Model[]>({
+  const { data: models = [], isLoading, isError } = useQuery<Model[]>({
     queryKey: ["/api/models"],
   });
 
-  if (isLoading) {
-    return <div>Loading models...</div>;
-  }
+  const content = () => {
+    if (isLoading) {
+      return <div className="text-sm text-muted-foreground">Loading models...</div>;
+    }
 
-  if (!models?.length) {
-    return <div>No models available. Train a model first.</div>;
-  }
+    if (isError) {
+      return <div className="text-sm text-destructive">Error loading models</div>;
+    }
 
-  return (
-    <div className="space-y-2">
-      <label className="text-sm font-medium">Select Model</label>
+    if (!models.length) {
+      return <div className="text-sm text-muted-foreground">No models available. Train a model first.</div>;
+    }
+
+    return (
       <Select
         onValueChange={(value) => {
           const selectedModel = models.find((m) => m.id.toString() === value);
@@ -53,6 +55,13 @@ export function ModelSelector({ onModelSelect }: ModelSelectorProps) {
           ))}
         </SelectContent>
       </Select>
+    );
+  };
+
+  return (
+    <div className="space-y-2">
+      <label className="text-sm font-medium">Select Model</label>
+      {content()}
     </div>
   );
 }
