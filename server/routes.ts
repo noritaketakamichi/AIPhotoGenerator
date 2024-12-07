@@ -6,7 +6,8 @@ import express, { Request, Response } from "express";
 import multer from "multer";
 import { mkdir, readFile, unlink, readdir } from "fs/promises";
 import { db } from "./db";
-import { uploads } from "./db/schema";
+import { uploads, training_history } from "./db/schema";
+import { eq, desc } from "drizzle-orm";
 import { createZipArchive } from "./utils/archive";
 import { fal } from "@fal-ai/client";
 import passport from "./auth";
@@ -241,6 +242,23 @@ export function registerRoutes(app: express.Application) {
         credentials: process.env.FAL_AI_API_KEY,
       });
 
+      if (!req.user?.id) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      // Get the next model number for this user
+      const [lastModel] = await db
+        .select({ name: training_history.name })
+        .from(training_history)
+        .where(eq(training_history.user_id, req.user.id))
+        .orderBy(desc(training_history.name))
+        .limit(1);
+
+      const nextModelNumber = lastModel 
+        ? parseInt(lastModel.name.replace('model', '')) + 1 
+        : 1;
+      const modelName = `model${nextModelNumber}`;
+
       if (process.env.AI_TRAINING_API_ENV === "production") {
         result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
           input: {
@@ -274,6 +292,14 @@ export function registerRoutes(app: express.Application) {
           },
         };
       }
+
+      // Save training history
+      await db.insert(training_history).values({
+        user_id: req.user.id,
+        name: modelName,
+        training_data_url: result.data.diffusers_lora_file.url,
+        config_url: result.data.config_file.url,
+      });
       console.log(result);
 
       // Delete all remaining files in the uploads directory
