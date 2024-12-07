@@ -15,7 +15,7 @@ export const users = pgTable('users', {
   created_at: timestamp('created_at').defaultNow().notNull(),
 });
 
-export const training_history = pgTable('training_history', {
+export const training_models = pgTable('training_models', {
   id: serial('id').primaryKey(),
   user_id: integer('user_id').notNull().references(() => users.id),
   name: text('name').notNull(),

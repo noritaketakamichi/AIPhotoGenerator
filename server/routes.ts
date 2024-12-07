@@ -6,7 +6,7 @@ import express, { Request, Response } from "express";
 import multer from "multer";
 import { mkdir, readFile, unlink, readdir } from "fs/promises";
 import { db } from "./db";
-import { uploads, training_history } from "./db/schema";
+import { uploads, training_models } from "./db/schema";
 import { eq, desc } from "drizzle-orm";
 import { createZipArchive } from "./utils/archive";
 import { fal } from "@fal-ai/client";
@@ -248,10 +248,10 @@ export function registerRoutes(app: express.Application) {
 
       // Get the next model number for this user
       const [lastModel] = await db
-        .select({ name: training_history.name })
-        .from(training_history)
-        .where(eq(training_history.user_id, req.user.id))
-        .orderBy(desc(training_history.name))
+        .select({ name: training_models.name })
+        .from(training_models)
+        .where(eq(training_models.user_id, req.user.id))
+        .orderBy(desc(training_models.name))
         .limit(1);
 
       const nextModelNumber = lastModel 
@@ -294,7 +294,7 @@ export function registerRoutes(app: express.Application) {
       }
 
       // Save training history
-      await db.insert(training_history).values({
+      await db.insert(training_models).values({
         user_id: req.user.id,
         name: modelName,
         training_data_url: result.data.diffusers_lora_file.url,
@@ -345,15 +345,15 @@ export function registerRoutes(app: express.Application) {
 
       const models = await db
         .select({
-          id: training_history.id,
-          name: training_history.name,
-          trainingDataUrl: training_history.training_data_url,
-          configUrl: training_history.config_url,
-          createdAt: training_history.created_at,
+          id: training_models.id,
+          name: training_models.name,
+          trainingDataUrl: training_models.training_data_url,
+          configUrl: training_models.config_url,
+          createdAt: training_models.created_at,
         })
-        .from(training_history)
-        .where(eq(training_history.user_id, req.user.id))
-        .orderBy(desc(training_history.created_at));
+        .from(training_models)
+        .where(eq(training_models.user_id, req.user.id))
+        .orderBy(desc(training_models.created_at));
 
       res.json(models);
     } catch (error) {
