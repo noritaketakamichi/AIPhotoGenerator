@@ -18,6 +18,7 @@ export function PhotoUploader() {
   const [generatedImages, setGeneratedImages] = useState<Array<{ url: string; file_name: string }>>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
+  const { refreshUserData } = useAuth();
 
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
@@ -106,6 +107,7 @@ export function PhotoUploader() {
           title: "Training Complete",
           description: "AI model training finished successfully",
         });
+        await refreshUserData(); // Refresh credits after successful training
       } catch (error: any) {
         console.error("Training error:", error);
         const response = error.response;
@@ -287,6 +289,7 @@ export function PhotoUploader() {
                       title: "Success",
                       description: "Image generated successfully",
                     });
+                    await refreshUserData(); // Refresh credits after successful generation
                   } catch (error) {
                     console.error("Generation error:", error);
                     toast({
