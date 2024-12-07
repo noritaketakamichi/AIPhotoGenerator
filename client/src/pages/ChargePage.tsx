@@ -1,9 +1,16 @@
 import { useState } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 
-// Initialize Stripe
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+
+// Initialize Stripe
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY || '');
+
+// Verify Stripe initialization
+if (!import.meta.env.VITE_STRIPE_PUBLIC_KEY) {
+  console.error('Stripe public key is not set in environment variables');
+}
 import { Link } from "wouter";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -21,9 +28,8 @@ const creditOptions: CreditOption[] = [
 ];
 
 export default function ChargePage() {
-  const [selectedOption, setSelectedOption] = useState<CreditOption>(
-    creditOptions[0],
-  );
+  const [selectedOption, setSelectedOption] = useState<CreditOption>(creditOptions[0]);
+  const { toast } = useToast();
 
   return (
     <div className="container mx-auto p-4">
@@ -92,6 +98,11 @@ export default function ChargePage() {
                   });
                 } catch (error) {
                   console.error('Payment error:', error);
+                  toast({
+                    title: "Payment Error",
+                    description: "Failed to initiate payment. Please try again.",
+                    variant: "destructive",
+                  });
                 }
               }}
             >
