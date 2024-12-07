@@ -1,18 +1,22 @@
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
-import { Request as ExpressRequest } from 'express';
+import { dirname } from "path";
+import express, { Request as ExpressRequest, Response } from "express";
 
 interface Request extends ExpressRequest {
   rawBody?: Buffer;
+  user?: {
+    id: number;
+    email: string;
+    credit: number;
+  };
 }
-import { dirname } from "path";
-import express, { Request, Response } from "express";
 import multer from "multer";
 import { mkdir, readFile, unlink, readdir } from "fs/promises";
 import { db } from "./db";
 import { uploads, training_models, generated_photos, users } from "./db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { createZipArchive } from "./utils/archive";
 import { fal } from "@fal-ai/client";
 import passport from "./auth";
@@ -547,9 +551,7 @@ export function registerRoutes(app: express.Application) {
                 },
               ],
               prompt: prompt,
-              embeddings: [],
               image_size: "square_hd",
-              model_name: null,
               enable_safety_checker: true,
             },
             logs: true,
@@ -577,8 +579,9 @@ export function registerRoutes(app: express.Application) {
         const [modelData] = await db
           .select({ id: training_models.id })
           .from(training_models)
-          .where(eq(training_models.id, modelId))
-          .where(eq(training_models.user_id, req.user.id))
+          .where(
+            sql`${training_models.id} = ${modelId} AND ${training_models.user_id} = ${req.user.id}`
+          )
           .limit(1);
 
         if (!modelData) {
