@@ -20,8 +20,9 @@ interface ModelSelectorProps {
 }
 
 export function ModelSelector({ onModelSelect }: ModelSelectorProps) {
-  const { data: models = [], isLoading, isError } = useQuery<Model[]>({
+  const { data: models = [], isLoading, isError, refetch } = useQuery<Model[]>({
     queryKey: ["/api/models"],
+    refetchOnMount: true,
   });
 
   const content = () => {
@@ -39,6 +40,11 @@ export function ModelSelector({ onModelSelect }: ModelSelectorProps) {
 
     return (
       <Select
+        onOpenChange={(open) => {
+          if (open) {
+            refetch();
+          }
+        }}
         onValueChange={(value) => {
           const selectedModel = models.find((m) => m.id.toString() === value);
           onModelSelect(selectedModel || null);
