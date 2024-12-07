@@ -80,7 +80,7 @@ export default function GalleryPage() {
                   <Button
                     variant="secondary"
                     size="icon"
-                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute top-2 right-2 bg-white/80 hover:bg-white transition-colors"
                     onClick={() => handleDownload(photo)}
                   >
                     <Download className="h-4 w-4" />
