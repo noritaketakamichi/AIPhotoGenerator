@@ -199,6 +199,10 @@ export function PhotoUploader() {
       {trainingResult && (
         <div className="mt-4 space-y-4">
           <div className="p-4 border rounded-lg bg-muted">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Create Model</h3>
+              <span className="text-sm text-muted-foreground">Cost: 20 credits</span>
+            </div>
             <p className="font-medium mb-2">Enter Prompt:</p>
             <textarea
               value={prompt}
@@ -268,7 +272,10 @@ export function PhotoUploader() {
           </div>
           {generatedImages.length > 0 && (
             <div className="mt-4 space-y-4">
-              <h3 className="text-lg font-semibold">Generated Images</h3>
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-semibold">Generated Images</h3>
+                <span className="text-sm text-muted-foreground">1 credit per image</span>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {generatedImages.map((image, index) => (
                   <div key={index} className="border rounded-lg p-2">
