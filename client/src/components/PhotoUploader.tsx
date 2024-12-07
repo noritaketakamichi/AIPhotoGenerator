@@ -159,44 +159,6 @@ export function PhotoUploader() {
         </div>
       </div>
 
-      {files.length > 0 && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {files.map((file, index) => (
-              <PhotoPreview
-                key={index}
-                file={file}
-                onRemove={() => {
-                  setFiles((prev) => prev.filter((_, i) => i !== index));
-                }}
-              />
-            ))}
-          </div>
-
-          <div className="space-y-2">
-            {uploadMutation.isPending && (
-              <Progress value={uploadProgress} className="w-full" />
-            )}
-
-            <div className="flex justify-between items-center">
-              <UploadStatus
-                filesCount={files.length}
-                isUploading={uploadMutation.isPending}
-              />
-
-              <Button
-                onClick={handleUpload}
-                disabled={files.length !== 4 || uploadMutation.isPending}
-              >
-                {uploadMutation.isPending ? "Processing..." : "Create ZIP"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      
-
       <div className="mt-8 space-y-8">
         {/* Upload Section */}
         <div className="space-y-4">
