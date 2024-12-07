@@ -208,7 +208,9 @@ export function PhotoUploader() {
             <ModelSelector 
               onModelSelect={(model) => {
                 if (model) {
+                  console.log("Selected model:", model);
                   setTrainingResult({
+                    modelId: model.id,
                     diffusers_lora_file: { url: model.trainingDataUrl },
                     config_file: { url: model.configUrl }
                   });
@@ -228,7 +230,12 @@ export function PhotoUploader() {
                 disabled={isGenerating}
                 onClick={async () => {
                   try {
+                    console.log("Current trainingResult:", trainingResult);
                     if (!trainingResult?.modelId || !trainingResult?.diffusers_lora_file?.url) {
+                      console.log("Model validation failed:", {
+                        modelId: trainingResult?.modelId,
+                        loraUrl: trainingResult?.diffusers_lora_file?.url
+                      });
                       toast({
                         title: "Error",
                         description: "Please select a model first",
