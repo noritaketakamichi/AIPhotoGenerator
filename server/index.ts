@@ -30,8 +30,22 @@ const app = express();
 // Trust proxy settings for secure HTTPS handling
 app.set('trust proxy', 1);
 
-app.use(express.json());
+// Configure middleware
+app.use((req, res, next) => {
+  if (req.originalUrl === '/api/stripe-webhook') {
+    next();
+  } else {
+    express.json()(req, res, next);
+  }
+});
+
 app.use(express.urlencoded({ extended: false }));
+
+// Special handling for Stripe webhook route
+app.post('/api/stripe-webhook', express.raw({type: 'application/json'}), (req, res, next) => {
+  req.rawBody = req.body;
+  next();
+});
 
 app.use((req, res, next) => {
   const start = Date.now();
