@@ -9,8 +9,6 @@ import { AuthProvider } from "./contexts/AuthContext";
 import Home from "./pages/Home";
 import AuthPage from "./pages/AuthPage";
 import GalleryPage from "./pages/GalleryPage";
-import ChargePage from "./pages/ChargePage";
-import ChargeSuccessPage from "./pages/ChargeSuccessPage";
 
 function Router() {
   return (
@@ -18,8 +16,6 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/auth" component={AuthPage} />
       <Route path="/gallery" component={GalleryPage} />
-      <Route path="/charge" component={ChargePage} />
-      <Route path="/charge/success" component={ChargeSuccessPage} />
       <Route>404 Page Not Found</Route>
     </Switch>
   );

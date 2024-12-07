@@ -20,14 +20,9 @@ export default function Home() {
                 <p>Welcome, {user.email}</p>
                 <p className="text-sm text-muted-foreground">Credits Available: {user.credit}</p>
                 <div className="flex justify-between items-center">
-                  <div className="flex gap-2">
-                    <Link href="/gallery">
-                      <Button variant="outline">Go to Gallery</Button>
-                    </Link>
-                    <Link href="/charge">
-                      <Button variant="default">Charge Credits</Button>
-                    </Link>
-                  </div>
+                  <Link href="/gallery">
+                    <Button variant="outline">Go to Gallery</Button>
+                  </Link>
                   <Button onClick={logout} variant="ghost" size="sm" className="text-muted-foreground">
                     Sign Out
                   </Button>
