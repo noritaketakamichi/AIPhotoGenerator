@@ -1,28 +1,42 @@
 # AI Sokkuri Photo Generator
 
-A modern web application for generating AI-powered photos based on user uploads. The system uses FAL.ai for image processing and training, allows users to create custom models from their photos, and generates new images based on text prompts. The application includes user authentication and a credit-based system powered by Stripe.
+An AI-powered photo generation application that allows users to create personalized AI models from their photos. Upload 4 photos to train a custom model, then use text prompts to generate new images in your style. Features Google authentication and a credit-based system powered by Stripe.
 
 ## Features
 
-- Upload exactly 4 photos for model training
-- AI model training with FAL.ai integration
-- Custom model management for each user
-- Text-to-image generation using trained models
-- Credit-based system for training and generation
-- Progress tracking and status indicators
-- Modern, responsive UI with drag-and-drop support
-- Secure payment integration with Stripe
-- User authentication with Google OAuth
+- Personalized AI Model Creation
+  - Train custom AI models from 4 of your photos
+  - Each model captures your unique style and characteristics
+  - Real-time training progress tracking
+  - Multiple models per user supported
+
+- AI Image Generation
+  - Generate new photos using your trained models
+  - Text-to-image generation with custom prompts
+  - High-quality image output
+  - Download generated images directly
+
+- User Management
+  - Google OAuth authentication
+  - Credit-based system for model training and image generation
+  - Secure payment processing with Stripe
+  - View and manage your models and generated images
+
+- Modern User Experience
+  - Intuitive drag-and-drop photo upload
+  - Real-time progress indicators
+  - Responsive design for all devices
+  - Gallery view for generated images
 
 ## Tech Stack
 
-- **Frontend**: React, TypeScript, TailwindCSS, Shadcn UI
-- **Backend**: Express.js
+- **Frontend**: React 18, TypeScript, TailwindCSS, Shadcn UI
+- **Backend**: Express.js with TypeScript
 - **Database**: PostgreSQL with Drizzle ORM
-- **AI Integration**: FAL.ai API
-- **Authentication**: Google OAuth
-- **Payment Processing**: Stripe
-- **State Management**: TanStack Query
+- **AI Services**: FAL.ai API for training and generation
+- **Authentication**: Google OAuth 2.0
+- **Payment**: Stripe integration with webhook support
+- **State Management**: TanStack Query v5
 
 ## Prerequisites
 
@@ -92,14 +106,15 @@ npm run start
 
 ## API Documentation
 
-### Upload Photos
+### Model Creation Flow
+
+#### 1. Upload Training Photos
 - **Endpoint**: `POST /api/upload`
+- **Description**: Upload exactly 4 photos for model training
 - **Content-Type**: `multipart/form-data`
 - **Fields**:
-  - `photo1`: First photo (required)
-  - `photo2`: Second photo (required)
-  - `photo3`: Third photo (required)
-  - `photo4`: Fourth photo (required)
+  - `photo1`, `photo2`, `photo3`, `photo4`: Training photos (all required)
+  - Max size: 5MB per photo
 - **Response**:
 ```json
 {
@@ -109,9 +124,9 @@ npm run start
 }
 ```
 
-### Model Training
+#### 2. Train AI Model
 - **Endpoint**: `POST /api/train`
-- **Description**: Initiates model training with uploaded photos
+- **Description**: Create a personalized AI model from uploaded photos
 - **Cost**: 20 credits
 - **Body**:
 ```json
@@ -119,10 +134,13 @@ npm run start
   "falUrl": string
 }
 ```
+- **Response**: Training result including model URLs
 
 ### Image Generation
+
+#### Generate New Images
 - **Endpoint**: `POST /api/generate`
-- **Description**: Generates new images using trained models
+- **Description**: Create new images using your trained model
 - **Cost**: 1 credit per image
 - **Body**:
 ```json
@@ -132,6 +150,19 @@ npm run start
   "prompt": string
 }
 ```
+- **Response**: Generated image URLs and metadata
+
+#### Get User's Models
+- **Endpoint**: `GET /api/models`
+- **Description**: List all trained models for the current user
+- **Authentication**: Required
+- **Response**: Array of model information
+
+#### Get Generated Photos
+- **Endpoint**: `GET /api/photos`
+- **Description**: Retrieve all generated photos for the current user
+- **Authentication**: Required
+- **Response**: Array of generated photos with metadata
 
 ### Payment Integration
 
