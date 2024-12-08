@@ -30,19 +30,20 @@ interface User {
   created_at: Date;
 }
 
-// Request type with proper file handling
+// Custom request type extending Express.Request with proper type parameters
 interface CustomRequest<
   P = ParamsDictionary,
   ResBody = any,
   ReqBody = any,
   ReqQuery = ParsedQs,
-> extends ExpressRequest<P, ResBody, ReqBody, ReqQuery> {
+> extends Omit<ExpressRequest<P, ResBody, ReqBody, ReqQuery>, 'files'> {
   rawBody?: Buffer;
   files?: { [fieldname: string]: Express.Multer.File[] };
   user?: User;
+  isAuthenticated(): this is AuthenticatedRequest<P, ResBody, ReqBody, ReqQuery>;
 }
 
-// Authenticated request type
+// Authenticated request type ensuring user is defined
 interface AuthenticatedRequest<
   P = ParamsDictionary,
   ResBody = any,
@@ -52,12 +53,18 @@ interface AuthenticatedRequest<
   user: User;
 }
 
-// Type guard for authenticated requests
-function isAuthenticatedRequest(
-  req: CustomRequest,
-): req is AuthenticatedRequest {
-  return req.user !== undefined;
+// Type definition for Google authentication options
+interface GoogleAuthOptions {
+  scope?: string[];
+  callbackURL?: string;
+  successRedirect?: string;
+  failureRedirect?: string;
 }
+
+// Specialized authenticate function for Google strategy
+const authenticateGoogle = (options: GoogleAuthOptions) => {
+  return passport.authenticate('google', options as any);
+};
 
 // Express middleware types
 type AsyncHandler = <
@@ -75,7 +82,7 @@ type AsyncHandler = <
 
 const asyncHandler: AsyncHandler = (fn) => async (req, res, next) => {
   try {
-    await fn(req as CustomRequest, res, next);
+    await fn(req as any, res, next);
   } catch (error) {
     next(error);
   }
@@ -157,7 +164,7 @@ export function registerRoutes(app: express.Application) {
       const host = req.headers["x-forwarded-host"] || req.get("host");
       const callbackUrl = `${protocol}://${host}/auth/google/callback`;
 
-      passport.authenticate("google", {
+      authenticateGoogle({
         scope: ["profile", "email"],
         callbackURL: callbackUrl,
       })(req, res, next);
@@ -167,7 +174,7 @@ export function registerRoutes(app: express.Application) {
   app.get(
     "/auth/google/callback",
     (req: CustomRequest, res: Response, next: NextFunction) => {
-      passport.authenticate("google", {
+      authenticateGoogle({
         failureRedirect: "/auth?error=authentication_failed",
         successRedirect: "/",
       })(req, res, next);
