@@ -45,6 +45,7 @@ interface CustomRequest extends ExpressRequest {
   files?: {
     [fieldname: string]: Express.Multer.File[];
   };
+  user?: Express.User;
 }
 
 type Request = CustomRequest;
@@ -57,8 +58,13 @@ declare module 'express-session' {
 }
 
 // Extended Request interfaces
-interface AuthenticatedRequest extends Request {
-  user: User;
+interface AuthenticatedRequest extends Omit<Request, 'user'> {
+  user: Express.User;
+}
+
+// Type guard to check if request is authenticated
+function isAuthenticatedRequest(req: Request): req is AuthenticatedRequest {
+  return req.user !== undefined;
 }
 
 interface StripeWebhookRequest extends Request {
@@ -74,7 +80,7 @@ type AsyncHandler = (
     req: Request,
     res: Response,
     next: NextFunction,
-  ) => Promise<void>,
+  ) => Promise<void | Response>,
 ) => RequestHandler;
 
 const asyncHandler: AsyncHandler = (fn) => async (req, res, next) => {
@@ -224,7 +230,10 @@ export function registerRoutes(app: express.Application) {
   }) as RequestHandler);
 
   // Stripe payment endpoint
-  app.post('/api/create-checkout-session', requireAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  app.post('/api/create-checkout-session', requireAuth, asyncHandler(async (req: Request, res: Response) => {
+    if (!isAuthenticatedRequest(req)) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
     try {
       if (!req.user?.id) {
         return res.status(401).json({ error: 'Authentication required' });
@@ -414,7 +423,10 @@ export function registerRoutes(app: express.Application) {
   );
 
   // Training endpoint
-  app.post("/api/train", requireAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  app.post("/api/train", requireAuth, asyncHandler(async (req: Request, res: Response) => {
+    if (!isAuthenticatedRequest(req)) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
     try {
       console.log("Training API Environment:", process.env.AI_TRAINING_API_ENV);
 
