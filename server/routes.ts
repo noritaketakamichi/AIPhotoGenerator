@@ -39,14 +39,19 @@ declare global {
   }
 }
 
-// Extended Request type to include all possible properties
-// Extended Request type with proper file handling
-interface CustomRequest extends Omit<ExpressRequest, 'files'> {
+// Extended Request type with proper Multer file handling
+interface CustomRequest<
+  P = ParamsDictionary,
+  ResBody = any,
+  ReqBody = any,
+  ReqQuery = ParsedQs,
+> {
   rawBody?: Buffer;
-  files?: {
-    [fieldname: string]: Express.Multer.File[];
-  } | undefined;
+  files?: { [fieldname: string]: Express.Multer.File[] };
   user?: Express.User;
+  params: P;
+  body: ReqBody;
+  query: ReqQuery;
 }
 
 // Use Express's built-in Request type with our custom properties
@@ -56,7 +61,7 @@ type Request<
   ReqBody = any,
   ReqQuery = ParsedQs,
   Locals extends Record<string, any> = Record<string, any>
-> = CustomRequest & Omit<ExpressRequest<P, ResBody, ReqBody, ReqQuery, Locals>, keyof CustomRequest>;
+> = CustomRequest<P, ResBody, ReqBody, ReqQuery> & Omit<ExpressRequest<P, ResBody, ReqBody, ReqQuery, Locals>, keyof CustomRequest>;
 
 // Extend the express session interface
 declare module 'express-session' {
@@ -97,18 +102,22 @@ type AsyncHandler = <
   P = ParamsDictionary,
   ResBody = any,
   ReqBody = any,
-  ReqQuery = ParsedQs
+  ReqQuery = ParsedQs,
 >(
   fn: (
     req: Request<P, ResBody, ReqBody, ReqQuery>,
     res: Response<ResBody>,
     next: NextFunction
   ) => Promise<void | Response<ResBody>>
-) => RequestHandler;
+) => (
+  req: Request<P, ResBody, ReqBody, ReqQuery>,
+  res: Response<ResBody>,
+  next: NextFunction
+) => Promise<void>;
 
 const asyncHandler: AsyncHandler = (fn) => async (req, res, next) => {
   try {
-    await fn(req, res, next);
+    await fn(req as any, res, next);
   } catch (error) {
     next(error);
   }
