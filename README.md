@@ -243,14 +243,17 @@ npm run start
   - Route handler type mismatches in authentication endpoints
   - Request type definitions need updating for file upload handlers
   - Middleware chain type definitions require updates
+  - Missing parenthesis and type definition issues in route handlers (documented in TypeScript errors)
 - These issues don't affect runtime functionality but should be addressed in future updates
 
 ## Development Roadmap
 
-- [ ] Refine TypeScript type definitions in routes.ts
+- [ ] Fix TypeScript syntax errors in routes.ts
+- [ ] Refine TypeScript type definitions for route handlers
 - [ ] Improve error handling in authentication flow
 - [ ] Add comprehensive API response documentation
 - [ ] Enhance test coverage
+- [ ] Update route handler types to use correct RequestHandler definitions
 
     "credit": number
   }
