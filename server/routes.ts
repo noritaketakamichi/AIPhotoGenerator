@@ -14,10 +14,18 @@ interface Request extends ExpressRequest {
   };
 }
 
-type RequestHandler = (
-  req: Request,
+type RequestHandler<T extends Request = Request> = (
+  req: T,
   res: Response
-) => Promise<Response | undefined> | Promise<void> | void;
+) => void | Promise<void>;
+
+interface StripeWebhookRequest extends Request {
+  rawBody: Buffer;
+}
+
+interface AuthenticatedRequest extends Request {
+  user: User;
+}
 import multer from "multer";
 import { mkdir, readFile, unlink, readdir } from "fs/promises";
 import { db } from "./db";

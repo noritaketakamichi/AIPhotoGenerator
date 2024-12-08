@@ -9,13 +9,18 @@ import { PhotoPreview } from "./PhotoPreview";
 import { UploadStatus } from "./UploadStatus";
 import { ModelSelector } from "./ModelSelector";
 import { Upload, Loader2 } from "lucide-react";
-import type { Model } from "./ModelSelector";
+import { type Model } from "./ModelSelector";
 
 export function PhotoUploader() {
   const [files, setFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [falUrl, setFalUrl] = useState<string | null>(null);
-  const [trainingResult, setTrainingResult] = useState<any>(null);
+  interface TrainingResult {
+    modelId: number;
+    diffusers_lora_file: { url: string };
+    config_file: { url: string };
+  }
+  const [trainingResult, setTrainingResult] = useState<TrainingResult | null>(null);
   const [prompt, setPrompt] = useState<string>("");
   const [generatedImages, setGeneratedImages] = useState<
     Array<{ url: string; file_name: string }>
@@ -275,6 +280,8 @@ export function PhotoUploader() {
                     diffusers_lora_file: { url: model.trainingDataUrl },
                     config_file: { url: model.configUrl },
                   });
+                } else {
+                  setTrainingResult(null);
                 }
               }}
             />

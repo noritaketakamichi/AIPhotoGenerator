@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
 
-interface Model {
+export interface Model {
   id: number;
   name: string;
   trainingDataUrl: string;
@@ -48,10 +48,7 @@ export function ModelSelector({ onModelSelect }: ModelSelectorProps) {
         onValueChange={(value) => {
           const selectedModel = models.find((m) => m.id.toString() === value);
           if (selectedModel) {
-            onModelSelect({
-              ...selectedModel,
-              modelId: selectedModel.id
-            });
+            onModelSelect(selectedModel);
           } else {
             onModelSelect(null);
           }
