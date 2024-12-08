@@ -386,21 +386,11 @@ export function PhotoUploader() {
                     alt={`Generated ${index + 1}`}
                     className="w-full h-auto rounded-lg"
                   />
-                  <div className="flex justify-between mt-2 px-2">
-                    <a
-                      href={image.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline"
-                    >
-                      Open Image
-                    </a>
-                    <a
-                      href={image.url}
-                      download={`generated-${index + 1}.png`}
-                      className="text-primary hover:underline"
-                      onClick={(e) => {
-                        e.preventDefault();
+                  <div className="mt-2 px-2 flex justify-end">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
                         fetch(image.url)
                           .then((response) => response.blob())
                           .then((blob) => {
@@ -415,8 +405,8 @@ export function PhotoUploader() {
                           });
                       }}
                     >
-                      Download
-                    </a>
+                      Download Image
+                    </Button>
                   </div>
                 </div>
               ))}
