@@ -4,13 +4,11 @@ import { fileURLToPath } from "url";
 import { dirname } from "path";
 import express, { Request as ExpressRequest, Response } from "express";
 
+import type { User } from './auth';
+
 interface Request extends ExpressRequest {
   rawBody?: Buffer;
-  user?: {
-    id: number;
-    email: string;
-    credit: number;
-  };
+  user?: User;
   files?: {
     [fieldname: string]: Express.Multer.File[];
   };
@@ -37,7 +35,7 @@ const __dirname = dirname(__filename);
 dotenv.config({ path: path.join(__dirname, "../.env") });
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2023-10-16'
+  apiVersion: '2024-11-20.acacia'
 });
 
 const storage = multer.diskStorage({
@@ -93,10 +91,12 @@ export function registerRoutes(app: express.Application) {
     const host = req.headers['x-forwarded-host'] || req.get('host');
     const callbackUrl = `${protocol}://${host}/auth/google/callback`;
     
-    passport.authenticate('google', { 
+    passport.authenticate('google', {
       scope: ['profile', 'email'],
-      callbackURL: callbackUrl
-    })(req, res, next);
+      state: true,
+      session: true,
+      callbackURL: callbackUrl as string
+    } as any)(req, res, next);
   });
 
   app.get('/auth/google/callback', (req, res, next) => {
@@ -133,7 +133,7 @@ export function registerRoutes(app: express.Application) {
   });
 
   // Stripe payment endpoint
-  app.post('/api/create-checkout-session', async (req: Request, res: Response) => {
+  app.post('/api/create-checkout-session', async (req: Request, res: Response): Promise<void> => {
     try {
       if (!req.user?.id) {
         return res.status(401).json({ error: 'Authentication required' });
@@ -177,7 +177,7 @@ export function registerRoutes(app: express.Application) {
   });
 
   // Stripe webhook endpoint
-  app.post('/api/stripe-webhook', async (req: Request, res: Response) => {
+  app.post('/api/stripe-webhook', async (req: Request, res: Response): Promise<void> => {
     console.log('=== Stripe Webhook Debug Logs ===');
     try {
       // Debug logging
