@@ -30,17 +30,34 @@ interface User {
   created_at: Date;
 }
 
-// Extended Request type with proper Multer file handling and authentication
-interface CustomRequest extends Omit<ExpressRequest, 'files'> {
+// Custom type for Express request with file handling
+interface CustomRequest<
+  P = ParamsDictionary,
+  ResBody = any,
+  ReqBody = any,
+  ReqQuery = ParsedQs
+> extends Omit<ExpressRequest, 'files' | 'user'> {
+  params: P;
+  body: ReqBody;
+  query: ReqQuery;
   rawBody?: Buffer;
   files?: { [fieldname: string]: Express.Multer.File[] };
-  user?: Express.User;
+  user?: User;
+  logIn(user: User, done: (err: any) => void): void;
+  logIn(user: User, options: any, done: (err: any) => void): void;
+  logout(options: Record<string, any>, done: (err: any) => void): void;
   logout(done: (err: any) => void): void;
-
+  isAuthenticated(): boolean;
 }
 
-interface AuthenticatedRequest extends CustomRequest {
-  user: Express.User;
+// Type for authenticated requests
+interface AuthenticatedRequest<
+  P = ParamsDictionary,
+  ResBody = any,
+  ReqBody = any,
+  ReqQuery = ParsedQs
+> extends CustomRequest<P, ResBody, ReqBody, ReqQuery> {
+  user: User;
 }
 
 // Type guard for authenticated requests
@@ -137,23 +154,16 @@ export function registerRoutes(app: express.Application) {
     const host = req.headers['x-forwarded-host'] || req.get('host');
     const callbackUrl = `${protocol}://${host}/auth/google/callback`;
     
-    const authOptions: AuthenticateOptions = {
-      scope: ['profile', 'email'],
-      callbackURL: callbackUrl,
-      successRedirect: '/',
-      failureRedirect: '/auth?error=authentication_failed'
-    };
-    
-    passport.authenticate('google', authOptions)(req, res, next);
+    passport.authenticate('google', {
+      scope: ['profile', 'email']
+    })(req, res, next);
   });
 
   app.get('/auth/google/callback', (req: CustomRequest, res: Response, next: NextFunction) => {
-    const authOptions: AuthenticateOptions = {
+    passport.authenticate('google', {
       failureRedirect: '/auth?error=authentication_failed',
       successRedirect: '/'
-    };
-    
-    passport.authenticate('google', authOptions)(req, res, next);
+    })(req, res, next);
   });
 
   app.get('/api/auth/user', asyncHandler(async (req: CustomRequest, res: Response) => {
