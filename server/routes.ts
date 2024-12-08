@@ -2,7 +2,15 @@ import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
-import express, { Request as ExpressRequest, Response, NextFunction, RequestHandler as ExpressRequestHandler } from "express";
+import express, { 
+  Request as ExpressRequest, 
+  Response, 
+  NextFunction, 
+  RequestHandler as ExpressRequestHandler,
+  Router
+} from "express";
+import { ParamsDictionary } from "express-serve-static-core";
+import { ParsedQs } from "qs";
 
 interface User {
   id: number;
@@ -10,15 +18,44 @@ interface User {
   credit: number;
 }
 
+// Define base User interface
+interface User {
+  id: number;
+  email: string;
+  credit: number;
+  created_at: Date;
+}
+
+// Extend Express namespace
+declare global {
+  namespace Express {
+    // Extend Express.User
+    interface User {
+      id: number;
+      email: string;
+      credit: number;
+      created_at: Date;
+    }
+  }
+}
+
 // Extended Request type to include all possible properties
-interface Request extends Omit<ExpressRequest, 'user'> {
+interface Request extends ExpressRequest {
   rawBody?: Buffer;
-  user?: User;
+  user?: Express.User;
   files?: {
     [fieldname: string]: Express.Multer.File[];
   };
-  logIn?: (user: User, done: (err: any) => void) => void;
-  logout?: (done: (err: any) => void) => void;
+  logIn(user: Express.User, done: (err: any) => void): void;
+  logIn(user: Express.User, options: any, done: (err: any) => void): void;
+  logout(done: (err: any) => void): void;
+}
+
+// Extend the express session interface
+declare module 'express-session' {
+  interface SessionData {
+    passport: { user: number }
+  }
 }
 
 // Extended Request interfaces
@@ -31,10 +68,26 @@ interface StripeWebhookRequest extends Request {
 }
 
 // Handler types
-type RequestHandler = ExpressRequestHandler;
+// Type definitions for request handlers
+type RequestHandler<
+  P = ParamsDictionary,
+  ResBody = any,
+  ReqBody = any,
+  ReqQuery = ParsedQs,
+> = (
+  req: Request<P, ResBody, ReqBody, ReqQuery>,
+  res: Response<ResBody>,
+  next: NextFunction,
+) => void | Promise<void>;
 
 // Express middleware types
-type AsyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) => RequestHandler;
+type AsyncHandler = <P = ParamsDictionary, ResBody = any, ReqBody = any, ReqQuery = ParsedQs>(
+  fn: (
+    req: Request<P, ResBody, ReqBody, ReqQuery>,
+    res: Response<ResBody>,
+    next: NextFunction,
+  ) => Promise<void | Response<ResBody>>,
+) => RequestHandler<P, ResBody, ReqBody, ReqQuery>;
 
 const asyncHandler: AsyncHandler = (fn) => async (req, res, next) => {
   try {
@@ -119,53 +172,72 @@ export function registerRoutes(app: express.Application) {
   app.use(passport.session());
 
   // Auth routes
-  app.get('/auth/google', ((req, res, next) => {
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const host = req.headers['x-forwarded-host'] || req.get('host');
-    const callbackUrl = `${protocol}://${host}/auth/google/callback`;
-    
-    passport.authenticate('google', {
-      scope: ['profile', 'email'],
-      callbackURL: callbackUrl,
-      session: true
-    })(req, res, next);
-  }) as RequestHandler);
-
-  app.get('/auth/google/callback', ((req, res, next) => {
-    passport.authenticate('google', {
-      failureRedirect: '/auth?error=authentication_failed',
-      session: true,
-      callbackURL: `${req.protocol}://${req.get('host')}/auth/google/callback`
-    }, (err: Error | null, user: User | undefined) => {
-      if (err) {
-        return res.redirect('/auth?error=' + encodeURIComponent(err.message));
-      }
+  app.get('/auth/google', (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+      const host = req.headers['x-forwarded-host'] || req.get('host');
+      const callbackUrl = `${protocol}://${host}/auth/google/callback`;
       
-      if (!user) {
-        return res.redirect('/auth?error=authentication_failed');
-      }
-
-      req.logIn(user, (loginErr) => {
-        if (loginErr) {
-          return res.redirect('/auth?error=' + encodeURIComponent(loginErr.message));
-        }
-        res.redirect('/');
-      });
-    })(req, res, next);
-  }) as RequestHandler);
-
-  app.get('/api/auth/user', ((req, res) => {
-    if (req.user) {
-      res.json(req.user);
-    } else {
-      res.status(401).json({ error: 'Not authenticated' });
+      passport.authenticate('google', {
+        scope: ['profile', 'email']
+      })(req, res, next);
+    } catch (error) {
+      next(error);
     }
   }) as RequestHandler);
 
-  app.post('/api/auth/logout', ((req, res) => {
-    req.logout(() => {
-      res.json({ success: true });
-    });
+  app.get('/auth/google/callback', (req: Request, res: Response, next: NextFunction) => {
+    try {
+      passport.authenticate('google', {
+        failureRedirect: '/auth?error=authentication_failed'
+      }, (err: Error | null, user: Express.User | false | null) => {
+        if (err) {
+          return res.redirect('/auth?error=' + encodeURIComponent(err.message));
+        }
+        
+        if (!user) {
+          return res.redirect('/auth?error=authentication_failed');
+        }
+
+        req.logIn(user, (loginErr) => {
+          if (loginErr) {
+            return res.redirect('/auth?error=' + encodeURIComponent(loginErr.message));
+          }
+          res.redirect('/');
+        });
+      })(req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  }) as RequestHandler);
+
+  app.get('/api/auth/user', (async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (req.user) {
+        res.json(req.user);
+      } else {
+        res.status(401).json({ error: 'Not authenticated' });
+      }
+    } catch (error) {
+      next(error);
+    }
+  }) as RequestHandler);
+
+  app.post('/api/auth/logout', (async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.logout) {
+        throw new Error('Logout function not available');
+      }
+      req.logout((err) => {
+        if (err) {
+          next(err);
+          return;
+        }
+        res.json({ success: true });
+      });
+    } catch (error) {
+      next(error);
+    }
   }) as RequestHandler);
 
   // Stripe payment endpoint
@@ -297,7 +369,7 @@ export function registerRoutes(app: express.Application) {
       { name: "photo3", maxCount: 1 },
       { name: "photo4", maxCount: 1 },
     ]),
-    asyncHandler(async (req: Request & { files?: { [fieldname: string]: Express.Multer.File[] } }, res: Response) => {
+    asyncHandler(async (req: Request, res: Response) => {
       try {
         const files = req.files;
 
@@ -359,7 +431,7 @@ export function registerRoutes(app: express.Application) {
   );
 
   // Training endpoint
-  app.post("/api/train", requireAuth, (asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  app.post("/api/train", requireAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     try {
       console.log("Training API Environment:", process.env.AI_TRAINING_API_ENV);
 
@@ -475,7 +547,7 @@ export function registerRoutes(app: express.Application) {
       console.error("Training error:", error);
       res.status(500).json({ error: "Training failed" });
     }
-  })));
+  }));
 
   // Get user's training models endpoint
   app.get("/api/models", requireAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
