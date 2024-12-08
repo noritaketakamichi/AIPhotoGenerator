@@ -4,9 +4,13 @@ import { fileURLToPath } from "url";
 import { dirname } from "path";
 import express, { Request as ExpressRequest, Response } from "express";
 
-import type { User } from './auth';
+interface User {
+  id: number;
+  email: string;
+  credit: number;
+}
 
-interface Request extends ExpressRequest {
+interface Request extends Omit<ExpressRequest, 'user'> {
   rawBody?: Buffer;
   user?: User;
   files?: {
@@ -16,8 +20,12 @@ interface Request extends ExpressRequest {
 
 type RequestHandler<T extends Request = Request> = (
   req: T,
-  res: Response
+  res: Response,
+  next?: NextFunction
 ) => void | Promise<void>;
+
+type AuthenticatedRequestHandler = RequestHandler<AuthenticatedRequest>;
+type StripeWebhookRequestHandler = RequestHandler<StripeWebhookRequest>;
 
 interface StripeWebhookRequest extends Request {
   rawBody: Buffer;
@@ -108,7 +116,7 @@ export function registerRoutes(app: express.Application) {
   });
 
   app.get('/auth/google/callback', (req, res, next) => {
-    passport.authenticate('google', (err, user) => {
+    passport.authenticate('google', (err: Error | null, user: User | undefined) => {
       if (err) {
         return res.redirect('/auth?error=' + encodeURIComponent(err.message));
       }
@@ -141,7 +149,7 @@ export function registerRoutes(app: express.Application) {
   });
 
   // Stripe payment endpoint
-  app.post('/api/create-checkout-session', async (req: Request, res: Response): Promise<void> => {
+  app.post('/api/create-checkout-session', async (req: Request, res: Response) => {
     try {
       if (!req.user?.id) {
         return res.status(401).json({ error: 'Authentication required' });
@@ -185,7 +193,7 @@ export function registerRoutes(app: express.Application) {
   });
 
   // Stripe webhook endpoint
-  app.post('/api/stripe-webhook', async (req: Request, res: Response): Promise<void> => {
+  app.post('/api/stripe-webhook', async (req: StripeWebhookRequest, res: Response) => {
     console.log('=== Stripe Webhook Debug Logs ===');
     try {
       // Debug logging
@@ -286,11 +294,9 @@ export function registerRoutes(app: express.Application) {
       { name: "photo3", maxCount: 1 },
       { name: "photo4", maxCount: 1 },
     ]),
-    async (req: Request, res: Response) => {
+    async (req: Request & { files: { [fieldname: string]: Express.Multer.File[] } }, res: Response) => {
       try {
-        const files = req.files as {
-          [fieldname: string]: Express.Multer.File[];
-        };
+        const files = req.files;
 
         if (!files || Object.keys(files).length !== 4) {
           return res

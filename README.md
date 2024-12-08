@@ -19,6 +19,30 @@ An AI-powered photo generation application that allows users to create personali
   - 1 credit per image generation
 
 - User Management
+### Authentication System
+
+- **Google OAuth Integration**
+  - Secure authentication using Google OAuth 2.0
+  - Session-based authentication with Express
+  - Automatic user profile creation on first login
+  - Secure session management with configurable timeout
+
+### Error Handling
+
+- **API Error Responses**
+  - Consistent error format across all endpoints
+  - Detailed error messages for debugging
+  - Credit-related error handling
+  - Authentication state validation
+  - Rate limiting and request validation
+
+### Type Safety
+
+- **TypeScript Integration**
+  - Strict type checking enabled
+  - Shared type definitions between client and server
+  - Custom type guards for runtime validation
+  - Proper error handling types
   - Secure Google OAuth authentication
   - Credit-based system with Stripe integration
   - Easy credit purchase and management
@@ -115,6 +139,7 @@ npm run start
 #### 1. Upload Training Photos
 - **Endpoint**: `POST /api/upload`
 - **Description**: Upload exactly 4 reference photos for model training
+- **Authentication**: Required
 - **Cost**: No credit cost for upload (training costs applied separately)
 - **Content-Type**: `multipart/form-data`
 - **Fields**:
@@ -125,6 +150,7 @@ npm run start
 ```json
 {
   "success": true,
+  "uploadId": number,
   "falUrl": string
 }
 ```
