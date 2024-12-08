@@ -5,28 +5,32 @@ An AI-powered photo generation application that allows users to create personali
 ## Features
 
 - Personalized AI Model Creation
-  - Train custom AI models from 4 of your photos
-  - Each model captures your unique style and characteristics
+  - Train custom AI models from 4 reference photos
+  - Capture unique style and characteristics
   - Real-time training progress tracking
-  - Multiple models per user supported
+  - Support for multiple models per user
+  - 20 credits per model training
 
 - AI Image Generation
-  - Generate new photos using your trained models
+  - Generate new photos using trained models
   - Text-to-image generation with custom prompts
   - High-quality image output
-  - Download generated images directly
+  - Easy one-click download for generated images
+  - 1 credit per image generation
 
 - User Management
-  - Google OAuth authentication
-  - Credit-based system for model training and image generation
-  - Secure payment processing with Stripe
-  - View and manage your models and generated images
+  - Secure Google OAuth authentication
+  - Credit-based system with Stripe integration
+  - Easy credit purchase and management
+  - Comprehensive model and image gallery
+  - Credit usage tracking
 
 - Modern User Experience
-  - Intuitive drag-and-drop photo upload
-  - Real-time progress indicators
-  - Responsive design for all devices
-  - Gallery view for generated images
+  - Simple drag-and-drop photo upload
+  - Real-time status indicators
+  - Mobile-responsive design
+  - Organized gallery with download options
+  - Clear credit balance display
 
 ## Tech Stack
 
@@ -110,16 +114,17 @@ npm run start
 
 #### 1. Upload Training Photos
 - **Endpoint**: `POST /api/upload`
-- **Description**: Upload exactly 4 photos for model training
+- **Description**: Upload exactly 4 reference photos for model training
+- **Cost**: No credit cost for upload (training costs applied separately)
 - **Content-Type**: `multipart/form-data`
 - **Fields**:
-  - `photo1`, `photo2`, `photo3`, `photo4`: Training photos (all required)
+  - `photo1`, `photo2`, `photo3`, `photo4`: Reference photos (all required)
   - Max size: 5MB per photo
+  - Images must be clear face photos for best results
 - **Response**:
 ```json
 {
   "success": true,
-  "uploadId": number,
   "falUrl": string
 }
 ```
