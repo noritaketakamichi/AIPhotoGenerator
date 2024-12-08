@@ -116,7 +116,7 @@ export function registerRoutes(app: express.Application) {
   });
 
   app.get('/auth/google/callback', (req: Request, res: Response, next: NextFunction) => {
-    passport.authenticate('google', (err: Error | null, user: User | undefined) => {
+    passport.authenticate('google', { session: true }, (err: Error | null, user: User | undefined, info?: any) => {
       if (err) {
         return res.redirect('/auth?error=' + encodeURIComponent(err.message));
       }
