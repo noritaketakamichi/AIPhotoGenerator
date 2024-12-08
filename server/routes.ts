@@ -359,7 +359,7 @@ export function registerRoutes(app: express.Application) {
   );
 
   // Training endpoint
-  app.post("/api/train", requireAuth, asyncHandler(async (req: Request, res: Response) => {
+  app.post("/api/train", requireAuth, (asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     try {
       console.log("Training API Environment:", process.env.AI_TRAINING_API_ENV);
 
@@ -475,7 +475,7 @@ export function registerRoutes(app: express.Application) {
       console.error("Training error:", error);
       res.status(500).json({ error: "Training failed" });
     }
-  }));
+  })));
 
   // Get user's training models endpoint
   app.get("/api/models", requireAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
