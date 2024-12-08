@@ -11,6 +11,8 @@ A modern web application for processing and converting images to ZIP format. Upl
 - Cloud storage integration with FAL.ai
 - PostgreSQL database for upload tracking
 - Modern, responsive UI with drag-and-drop support
+- Secure payment integration with Stripe
+- Credit-based system for photo generation
 
 ## Tech Stack
 
@@ -20,6 +22,7 @@ A modern web application for processing and converting images to ZIP format. Upl
 - **Storage**: FAL.ai
 - **Image Processing**: Sharp
 - **File Compression**: Archiver
+- **Payment Processing**: Stripe
 
 ## Prerequisites
 
@@ -37,6 +40,11 @@ DATABASE_URL=postgresql://user:password@host:port/dbname
 
 # FAL.ai Configuration
 FAL_AI_API_KEY=your_fal_ai_key
+
+# Stripe Configuration
+STRIPE_PUBLIC_KEY=your_stripe_public_key
+STRIPE_SECRET_KEY=your_stripe_secret_key
+STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
 ```
 
 ## Installation
@@ -94,6 +102,39 @@ npm run start
   "falUrl": string
 }
 ```
+
+### Payment Integration
+- **Create Payment Intent**
+  - **Endpoint**: `POST /api/payment/create-intent`
+  - **Body**:
+  ```json
+  {
+    "amount": number,
+    "currency": "usd"
+  }
+  ```
+  - **Response**:
+  ```json
+  {
+    "clientSecret": string
+  }
+  ```
+
+- **Webhook Handler**
+  - **Endpoint**: `POST /api/payment/webhook`
+  - **Description**: Handles Stripe webhook events for payment confirmations and failures
+  - **Headers**:
+    - `stripe-signature`: Stripe webhook signature
+  - **Response**: 200 OK on success
+
+- **Get User Credits**
+  - **Endpoint**: `GET /api/user/credits`
+  - **Response**:
+  ```json
+  {
+    "credits": number
+  }
+  ```
 
 ## Contributing
 

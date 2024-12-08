@@ -2,21 +2,35 @@ import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
-import express, { Request, Response } from "express";
+import express, { Request as ExpressRequest, Response } from "express";
+
+interface Request extends ExpressRequest {
+  rawBody?: Buffer;
+  user?: {
+    id: number;
+    email: string;
+    credit: number;
+  };
+}
 import multer from "multer";
 import { mkdir, readFile, unlink, readdir } from "fs/promises";
 import { db } from "./db";
 import { uploads, training_models, generated_photos, users } from "./db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { createZipArchive } from "./utils/archive";
 import { fal } from "@fal-ai/client";
 import passport from "./auth";
 import session from "express-session";
+import Stripe from 'stripe';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 dotenv.config({ path: path.join(__dirname, "../.env") });
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+  apiVersion: '2023-10-16'
+});
 
 const storage = multer.diskStorage({
   destination: async function (req, file, cb) {
@@ -55,24 +69,11 @@ export function registerRoutes(app: express.Application) {
     saveUninitialized: false,
     proxy: true,
     cookie: {
-      secure: true, // Always use secure cookies
+      secure: true,
       sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      maxAge: 24 * 60 * 60 * 1000
     }
   }));
-
-  // Log all incoming requests for debugging
-  app.use((req, res, next) => {
-    console.log('\n=== Incoming Request ===');
-    console.log('URL:', req.url);
-    console.log('Headers:', {
-      'x-forwarded-proto': req.get('x-forwarded-proto'),
-      'x-forwarded-host': req.get('x-forwarded-host'),
-      'host': req.get('host')
-    });
-    console.log('=====================\n');
-    next();
-  });
 
   // Initialize Passport and restore authentication state from session
   app.use(passport.initialize());
@@ -80,16 +81,9 @@ export function registerRoutes(app: express.Application) {
 
   // Auth routes
   app.get('/auth/google', (req, res, next) => {
-    console.log('\n=== Google Auth Request ===');
-    console.log('Auth Request Headers:', req.headers);
-    console.log('Current Environment:', process.env.NODE_ENV);
-    
-    // Get the callback URL that will be used
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const host = req.headers['x-forwarded-host'] || req.get('host');
     const callbackUrl = `${protocol}://${host}/auth/google/callback`;
-    console.log('Using Callback URL:', callbackUrl);
-    console.log('========================\n');
     
     passport.authenticate('google', { 
       scope: ['profile', 'email'],
@@ -98,31 +92,19 @@ export function registerRoutes(app: express.Application) {
   });
 
   app.get('/auth/google/callback', (req, res, next) => {
-    console.log('\n=== Google Auth Callback ===');
-    console.log('Callback Headers:', req.headers);
-    console.log('Callback Query:', req.query);
-    console.log('Callback URL:', 'https://466108c8-ed88-4061-af7f-61e53df5b8eb-00-mkii563l5bz7.sisko.replit.dev/auth/google/callback');
-    console.log('Current URL:', `${req.protocol}://${req.get('host')}${req.originalUrl}`);
-    console.log('========================\n');
-
     passport.authenticate('google', (err, user) => {
       if (err) {
-        console.error('Authentication Error:', err);
         return res.redirect('/auth?error=' + encodeURIComponent(err.message));
       }
       
       if (!user) {
-        console.error('Authentication failed: No user returned');
         return res.redirect('/auth?error=authentication_failed');
       }
 
       req.logIn(user, (err) => {
         if (err) {
-          console.error('Login Error:', err);
           return res.redirect('/auth?error=' + encodeURIComponent(err.message));
         }
-        
-        // Successful authentication, redirect home
         res.redirect('/');
       });
     })(req, res, next);
@@ -141,6 +123,144 @@ export function registerRoutes(app: express.Application) {
       res.json({ success: true });
     });
   });
+
+  // Stripe payment endpoint
+  app.post('/api/create-checkout-session', async (req: Request, res: Response) => {
+    try {
+      if (!req.user?.id) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      const { credits, amount } = req.body;
+      
+      if (!credits || !amount) {
+        return res.status(400).json({ error: 'Credits and amount are required' });
+      }
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: `${credits} Credits`,
+                description: 'Credits for generating AI images',
+              },
+              unit_amount: amount * 100, // Convert to cents
+            },
+            quantity: 1,
+          },
+        ],
+        mode: 'payment',
+        success_url: `${req.headers.origin}/charge/success?session_id={CHECKOUT_SESSION_ID}&credits=${credits}`,
+        cancel_url: `${req.headers.origin}/charge`,
+        metadata: {
+          userId: req.user.id,
+          credits: credits,
+        },
+      });
+
+      res.json({ id: session.id });
+    } catch (error) {
+      console.error('Stripe session creation error:', error);
+      res.status(500).json({ error: 'Failed to create checkout session' });
+    }
+  });
+
+  // Stripe webhook endpoint
+  app.post('/api/stripe-webhook', async (req: Request, res: Response) => {
+    console.log('=== Stripe Webhook Debug Logs ===');
+    try {
+      // Debug logging
+      console.log('1. Request body type:', typeof req.body);
+      console.log('2. Raw body available:', !!(req as any).rawBody);
+      console.log('3. Headers:', JSON.stringify(req.headers, null, 2));
+      
+      const sig = req.headers['stripe-signature'];
+      if (!sig) {
+        console.error('4. Missing stripe signature');
+        return res.status(400).json({ error: 'No Stripe signature found' });
+      }
+      console.log('5. Found stripe signature:', sig);
+
+      // Verify webhook signature
+      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+      if (!webhookSecret) {
+        console.error('6. Webhook secret is missing');
+        return res.status(500).json({ error: 'Webhook secret is not configured' });
+      }
+      console.log('7. Webhook secret configured');
+
+      if (!(req as any).rawBody) {
+        console.error('8. Request raw body is missing');
+        return res.status(400).json({ error: 'No raw body available' });
+      }
+      console.log('9. Raw body is available');
+
+      const event = stripe.webhooks.constructEvent(
+        (req as any).rawBody,
+        sig,
+        webhookSecret
+      );
+
+      console.log('10. Successfully constructed webhook event');
+      console.log('11. Event type:', event.type);
+
+      if (event.type === 'checkout.session.completed') {
+        const session = event.data.object as Stripe.Checkout.Session;
+        console.log('12. Processing completed checkout session');
+        
+        const userId = session.metadata?.userId;
+        const credits = parseInt(session.metadata?.credits || '0');
+
+        if (!userId || !credits) {
+          console.error('13. Missing userId or credits in session metadata');
+          return res.status(400).json({ error: 'Invalid session metadata' });
+        }
+
+        console.log('14. Updating credits for user:', userId);
+
+        // First get current user credits
+        const [currentUser] = await db
+          .select({ credit: users.credit })
+          .from(users)
+          .where(eq(users.id, parseInt(userId)));
+
+        if (!currentUser) {
+          console.error('15. User not found');
+          return res.status(404).json({ error: 'User not found' });
+        }
+
+        const newCreditAmount = (currentUser.credit || 0) + credits;
+        console.log('16. New credit amount:', newCreditAmount);
+
+        // Update user credits
+        await db
+          .update(users)
+          .set({ credit: newCreditAmount })
+          .where(eq(users.id, parseInt(userId)));
+
+        console.log('17. Credits updated successfully');
+      }
+
+      res.json({ received: true });
+    } catch (error: any) {
+      console.error('Webhook processing error:', {
+        name: error.name,
+        message: error.message,
+        type: error.type,
+        stack: error.stack
+      });
+      
+      if (error.type === 'StripeSignatureVerificationError') {
+        return res.status(400).json({ error: 'Webhook signature verification failed' });
+      }
+      
+      return res.status(500).json({ error: 'Internal server error in webhook handler' });
+    }
+  });
+
   // File upload endpoint
   app.post(
     "/api/upload",
@@ -156,8 +276,6 @@ export function registerRoutes(app: express.Application) {
           [fieldname: string]: Express.Multer.File[];
         };
 
-        console.log("files", files);
-
         if (!files || Object.keys(files).length !== 4) {
           return res
             .status(400)
@@ -169,8 +287,6 @@ export function registerRoutes(app: express.Application) {
         );
         const zipFileName = `archive-${Date.now()}.zip`;
         const zipPath = path.join(process.cwd(), "uploads", zipFileName);
-
-        console.log("createZipArchive will be called");
 
         await createZipArchive(fileNames, zipPath);
 
@@ -187,21 +303,17 @@ export function registerRoutes(app: express.Application) {
         const zipFile = await readFile(zipPath);
         const file = new Blob([zipFile], { type: "application/zip" });
 
-        console.log("file was created");
-
         let falUrl: string;
-        // Initialize fal client and handle upload based on environment
         if (process.env.AI_TRAINING_API_ENV === "production") {
           fal.config({
             credentials: process.env.FAL_AI_API_KEY,
           });
           falUrl = await fal.storage.upload(file);
         } else {
-          // Mock URL for development environment
           falUrl = `https://v3.fal.media/files/mock/${Buffer.from(Math.random().toString()).toString("hex").slice(0, 8)}_${Date.now()}.zip`;
         }
 
-        // Delete all uploaded files and the ZIP file
+        // Delete uploaded files and ZIP
         await Promise.all([
           ...fileNames.map(fileName => 
             unlink(path.join(process.cwd(), "uploads", fileName))
@@ -439,9 +551,7 @@ export function registerRoutes(app: express.Application) {
                 },
               ],
               prompt: prompt,
-              embeddings: [],
               image_size: "square_hd",
-              model_name: null,
               enable_safety_checker: true,
             },
             logs: true,
@@ -469,8 +579,9 @@ export function registerRoutes(app: express.Application) {
         const [modelData] = await db
           .select({ id: training_models.id })
           .from(training_models)
-          .where(eq(training_models.id, modelId))
-          .where(eq(training_models.user_id, req.user.id))
+          .where(
+            sql`${training_models.id} = ${modelId} AND ${training_models.user_id} = ${req.user.id}`
+          )
           .limit(1);
 
         if (!modelData) {

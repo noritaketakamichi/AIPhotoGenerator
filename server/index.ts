@@ -30,6 +30,17 @@ const app = express();
 // Trust proxy settings for secure HTTPS handling
 app.set('trust proxy', 1);
 
+// Configure body parsing middleware
+const rawBodySaver = (req: Request, res: Response, buf: Buffer, encoding: string) => {
+  if (buf && buf.length) {
+    (req as any).rawBody = buf;
+  }
+};
+
+// Parse raw body for Stripe webhook
+app.use('/api/stripe-webhook', express.raw({ type: 'application/json', verify: rawBodySaver }));
+
+// Parse JSON for all other routes
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -88,6 +99,9 @@ app.use((req, res, next) => {
   // this serves both the API and the client
   const PORT = 5000;
   server.listen(PORT, "0.0.0.0", () => {
-    log(`serving on port ${PORT}`);
+    log(`Server running at http://0.0.0.0:${PORT}`);
+  }).on('error', (error) => {
+    console.error('Server failed to start:', error);
+    process.exit(1);
   });
 })();
