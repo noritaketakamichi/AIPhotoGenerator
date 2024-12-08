@@ -10,39 +10,50 @@ interface User {
   credit: number;
 }
 
+// Extended Request type to include all possible properties
 interface Request extends Omit<ExpressRequest, 'user'> {
   rawBody?: Buffer;
   user?: User;
   files?: {
     [fieldname: string]: Express.Multer.File[];
   };
+  logIn?: (user: User, done: (err: any) => void) => void;
+  logout?: (done: (err: any) => void) => void;
 }
 
-type RouteHandler = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => Promise<void | Response> | void;
-
-type AuthRouteHandler = (
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-) => Promise<void | Response> | void;
-
-interface AuthenticatedRequest extends Request {
+// Extended Request interfaces
+interface AuthenticatedRequest extends Omit<ExpressRequest, 'user'> {
   user: User;
+  files?: {
+    [fieldname: string]: Express.Multer.File[];
+  };
+  logIn?: (user: User, done: (err: any) => void) => void;
+  logout?: (done: (err: any) => void) => void;
 }
 
-interface StripeWebhookRequest extends Request {
+interface StripeWebhookRequest extends Omit<ExpressRequest, 'body'> {
   rawBody: Buffer;
+  body: any;
 }
 
-const asyncHandler = (fn: RouteHandler): RouteHandler => (req, res, next) => {
-  return Promise.resolve(fn(req, res, next)).catch(next);
-};
+// Handler types
+type RequestHandler<T = Request> = (
+  req: T,
+  res: Response,
+  next: NextFunction
+) => Promise<void | Response> | void;
 
-const requireAuth = (req: Request, res: Response, next: NextFunction) => {
+type RouteHandler = RequestHandler<Request>;
+type AuthenticatedHandler = RequestHandler<AuthenticatedRequest>;
+type GoogleAuthHandler = RequestHandler<Request>;
+
+// Express middleware types
+type ExpressMiddleware = ExpressRequestHandler;
+
+const asyncHandler = (fn: RequestHandler): ExpressRequestHandler => 
+  (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
+const requireAuth: ExpressRequestHandler = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
@@ -117,43 +128,40 @@ export function registerRoutes(app: express.Application) {
   app.use(passport.session());
 
   // Auth routes
-  app.get('/auth/google', (req: Request, res: Response, next: NextFunction) => {
+  app.get('/auth/google', ((req, res, next) => {
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const host = req.headers['x-forwarded-host'] || req.get('host');
     const callbackUrl = `${protocol}://${host}/auth/google/callback`;
     
-    const authOptions = {
+    passport.authenticate('google', {
       scope: ['profile', 'email'],
       callbackURL: callbackUrl,
       session: true
-    };
-    
-    passport.authenticate('google', authOptions)(req, res, next);
-  });
+    })(req, res, next);
+  }) as ExpressRequestHandler);
 
-  app.get('/auth/google/callback', (req: Request, res: Response, next: NextFunction) => {
-    const authHandler = passport.authenticate('google', 
-      { failureRedirect: '/auth?error=authentication_failed' },
-      (err: Error | null, user: User | undefined) => {
-        if (err) {
-          return res.redirect('/auth?error=' + encodeURIComponent(err.message));
-        }
-        
-        if (!user) {
-          return res.redirect('/auth?error=authentication_failed');
-        }
-
-        req.logIn(user, (loginErr) => {
-          if (loginErr) {
-            return res.redirect('/auth?error=' + encodeURIComponent(loginErr.message));
-          }
-          res.redirect('/');
-        });
+  app.get('/auth/google/callback', ((req, res, next) => {
+    passport.authenticate('google', {
+      failureRedirect: '/auth?error=authentication_failed',
+      session: true,
+      callbackURL: `${req.protocol}://${req.get('host')}/auth/google/callback`
+    }, (err: Error | null, user: User | undefined) => {
+      if (err) {
+        return res.redirect('/auth?error=' + encodeURIComponent(err.message));
       }
-    );
-    
-    authHandler(req, res, next);
-  });
+      
+      if (!user) {
+        return res.redirect('/auth?error=authentication_failed');
+      }
+
+      req.logIn(user, (loginErr) => {
+        if (loginErr) {
+          return res.redirect('/auth?error=' + encodeURIComponent(loginErr.message));
+        }
+        res.redirect('/');
+      });
+    })(req, res, next);
+  }) as ExpressRequestHandler);
 
   app.get('/api/auth/user', asyncHandler(async (req: Request, res: Response) => {
     if (req.user) {
@@ -170,8 +178,7 @@ export function registerRoutes(app: express.Application) {
   }));
 
   // Stripe payment endpoint
-  app.post('/api/create-checkout-session',
-    async (req: AuthenticatedRequest, res: Response) => {
+  app.post('/api/create-checkout-session', requireAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       try {
         if (!req.user?.id) {
           return res.status(401).json({ error: 'Authentication required' });
@@ -212,14 +219,13 @@ export function registerRoutes(app: express.Application) {
         console.error('Stripe session creation error:', error);
         res.status(500).json({ error: 'Failed to create checkout session' });
       }
-    }
-  );
+  }));
 
   // Stripe webhook endpoint
-  app.post('/api/stripe-webhook',
-    async (req: StripeWebhookRequest, res: Response) => {
-      console.log('=== Stripe Webhook Debug Logs ===');
-      try {
+  app.post('/api/stripe-webhook', ((req, res, next) => {
+    const webhookReq = req as StripeWebhookRequest;
+    console.log('=== Stripe Webhook Debug Logs ===');
+    try {
         console.log('1. Request body type:', typeof req.body);
         console.log('2. Raw body available:', !!req.rawBody);
         console.log('3. Headers:', JSON.stringify(req.headers, null, 2));
@@ -300,8 +306,8 @@ export function registerRoutes(app: express.Application) {
       { name: "photo2", maxCount: 1 },
       { name: "photo3", maxCount: 1 },
       { name: "photo4", maxCount: 1 },
-    ]) as RequestHandler,
-    async (req: Request, res: Response) => {
+    ]),
+    asyncHandler(async (req: Request & { files: { [fieldname: string]: Express.Multer.File[] } }, res: Response) => {
       try {
         const files = req.files;
 
@@ -363,8 +369,8 @@ export function registerRoutes(app: express.Application) {
   );
 
   // Training endpoint
-  app.post("/api/train",
-    async (req: AuthenticatedRequest, res: Response) => {
+  app.post("/api/train", requireAuth,
+    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       try {
         console.log("Training API Environment:", process.env.AI_TRAINING_API_ENV);
 
@@ -484,8 +490,8 @@ export function registerRoutes(app: express.Application) {
   );
 
   // Get user's training models endpoint
-  app.get("/api/models",
-    async (req: AuthenticatedRequest, res: Response) => {
+  app.get("/api/models", requireAuth,
+    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       try {
         if (!req.user?.id) {
           return res.status(401).json({ error: "Authentication required" });
@@ -512,8 +518,8 @@ export function registerRoutes(app: express.Application) {
   );
 
   // Generate image endpoint
-  app.post("/api/generate",
-    async (req: AuthenticatedRequest, res: Response) => {
+  app.post("/api/generate", requireAuth,
+    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       try {
         const { modelId, loraUrl, prompt } = req.body;
 
@@ -619,8 +625,8 @@ export function registerRoutes(app: express.Application) {
   );
 
   // Get user's generated photos endpoint
-  app.get("/api/photos",
-    async (req: AuthenticatedRequest, res: Response) => {
+  app.get("/api/photos", requireAuth,
+    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       try {
         if (!req.user?.id) {
           return res.status(401).json({ error: "Authentication required" });
