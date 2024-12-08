@@ -22,6 +22,10 @@ declare module 'express' {
   }
   interface Request {
     user?: User;
+    logIn(user: User, done: (err: any) => void): void;
+    logIn(user: User, options: any, done: (err: any) => void): void;
+    logout(options: Record<string, any>, done: (err: any) => void): void;
+    logout(done: (err: any) => void): void;
   }
 }
 
@@ -31,9 +35,8 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      scope: ["profile", "email"],
+      callbackURL: '/auth/google/callback',
       proxy: true,
-      callbackURL: '/auth/google/callback'
     },
     async (accessToken: string, refreshToken: string, profile: any, done: any) => {
       // Log authentication details

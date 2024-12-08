@@ -40,16 +40,14 @@ declare global {
 }
 
 // Extended Request type to include all possible properties
-interface Request extends ExpressRequest {
+interface CustomRequest extends ExpressRequest {
   rawBody?: Buffer;
-  user?: Express.User;
   files?: {
     [fieldname: string]: Express.Multer.File[];
   };
-  logIn(user: Express.User, done: (err: any) => void): void;
-  logIn(user: Express.User, options: any, done: (err: any) => void): void;
-  logout(done: (err: any) => void): void;
 }
+
+type Request = CustomRequest;
 
 // Extend the express session interface
 declare module 'express-session' {
@@ -68,26 +66,16 @@ interface StripeWebhookRequest extends Request {
 }
 
 // Handler types
-// Type definitions for request handlers
-type RequestHandler<
-  P = ParamsDictionary,
-  ResBody = any,
-  ReqBody = any,
-  ReqQuery = ParsedQs,
-> = (
-  req: Request<P, ResBody, ReqBody, ReqQuery>,
-  res: Response<ResBody>,
-  next: NextFunction,
-) => void | Promise<void>;
+type RequestHandler = ExpressRequestHandler;
 
 // Express middleware types
-type AsyncHandler = <P = ParamsDictionary, ResBody = any, ReqBody = any, ReqQuery = ParsedQs>(
+type AsyncHandler = (
   fn: (
-    req: Request<P, ResBody, ReqBody, ReqQuery>,
-    res: Response<ResBody>,
+    req: Request,
+    res: Response,
     next: NextFunction,
-  ) => Promise<void | Response<ResBody>>,
-) => RequestHandler<P, ResBody, ReqBody, ReqQuery>;
+  ) => Promise<void>,
+) => RequestHandler;
 
 const asyncHandler: AsyncHandler = (fn) => async (req, res, next) => {
   try {
@@ -172,16 +160,18 @@ export function registerRoutes(app: express.Application) {
   app.use(passport.session());
 
   // Auth routes
-  app.get('/auth/google', ((req: Request, res: Response, next: NextFunction) => {
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    const host = req.headers['x-forwarded-host'] || req.get('host');
-    const callbackUrl = `${protocol}://${host}/auth/google/callback`;
-    
-    passport.authenticate('google', {
-      scope: ['profile', 'email'],
-      callbackURL: callbackUrl
-    })(req, res, next);
-  }) as RequestHandler);
+  app.get('/auth/google', (
+    (req: Request, res: Response, next: NextFunction) => {
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+      const host = req.headers['x-forwarded-host'] || req.get('host');
+      const callbackUrl = `${protocol}://${host}/auth/google/callback`;
+      
+      passport.authenticate('google', {
+        scope: ['profile', 'email'],
+        callbackURL: callbackUrl,
+      })(req, res, next);
+    }
+  ) as RequestHandler);
 
   app.get('/auth/google/callback', ((req: Request, res: Response, next: NextFunction) => {
     passport.authenticate('google', {
