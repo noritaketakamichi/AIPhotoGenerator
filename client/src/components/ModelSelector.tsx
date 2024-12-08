@@ -17,7 +17,6 @@ export interface Model {
 
 interface ModelSelectorProps {
   onModelSelect: (model: Model | null) => void;
-  selectedModel?: Model | null;
 }
 
 export function ModelSelector({ onModelSelect }: ModelSelectorProps) {

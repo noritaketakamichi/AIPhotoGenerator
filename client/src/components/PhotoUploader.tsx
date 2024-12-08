@@ -16,9 +16,9 @@ export function PhotoUploader() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [falUrl, setFalUrl] = useState<string | null>(null);
   interface TrainingResult {
-    modelId: number;
-    diffusers_lora_file: { url: string };
-    config_file: { url: string };
+    modelId?: number;
+    diffusers_lora_file?: { url: string };
+    config_file?: { url: string };
   }
   const [trainingResult, setTrainingResult] = useState<TrainingResult | null>(null);
   const [prompt, setPrompt] = useState<string>("");

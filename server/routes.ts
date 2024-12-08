@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
-import express, { Request as ExpressRequest, Response } from "express";
+import express, { Request as ExpressRequest, Response, NextFunction } from "express";
 
 interface User {
   id: number;
@@ -115,7 +115,7 @@ export function registerRoutes(app: express.Application) {
     } as any)(req, res, next);
   });
 
-  app.get('/auth/google/callback', (req, res, next) => {
+  app.get('/auth/google/callback', (req: Request, res: Response, next: NextFunction) => {
     passport.authenticate('google', (err: Error | null, user: User | undefined) => {
       if (err) {
         return res.redirect('/auth?error=' + encodeURIComponent(err.message));
@@ -294,7 +294,7 @@ export function registerRoutes(app: express.Application) {
       { name: "photo3", maxCount: 1 },
       { name: "photo4", maxCount: 1 },
     ]),
-    async (req: Request & { files: { [fieldname: string]: Express.Multer.File[] } }, res: Response) => {
+    async (req: Request, res: Response) => {
       try {
         const files = req.files;
 
