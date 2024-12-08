@@ -11,7 +11,15 @@ interface Request extends ExpressRequest {
     email: string;
     credit: number;
   };
+  files?: {
+    [fieldname: string]: Express.Multer.File[];
+  };
 }
+
+type RequestHandler = (
+  req: Request,
+  res: Response
+) => Promise<Response | undefined> | Promise<void> | void;
 import multer from "multer";
 import { mkdir, readFile, unlink, readdir } from "fs/promises";
 import { db } from "./db";

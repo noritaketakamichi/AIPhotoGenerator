@@ -25,7 +25,7 @@ export function PhotoUploader() {
     queryKey: ["/api/models"],
     refetchOnMount: true,
   });
-  const [isCreateModelOpen, setIsCreateModelOpen] = useState(models.length === 0);
+  const [isCreateModelOpen, setIsCreateModelOpen] = useState<boolean>(false);
   const { toast } = useToast();
   const { user, refreshUserData } = useAuth();
 
