@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -21,13 +21,19 @@ export function PhotoUploader() {
     Array<{ url: string; file_name: string }>
   >([]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const { data: models = [] } = useQuery<Model[]>({
+  const { data: models = [], isLoading } = useQuery<Model[]>({
     queryKey: ["/api/models"],
     refetchOnMount: true,
   });
-  const [isCreateModelOpen, setIsCreateModelOpen] = useState<boolean>(models.length === 0);
+  const [isCreateModelOpen, setIsCreateModelOpen] = useState<boolean>(true);
   const { toast } = useToast();
   const { user, refreshUserData } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading) {
+      setIsCreateModelOpen(models.length === 0);
+    }
+  }, [models, isLoading]);
 
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
