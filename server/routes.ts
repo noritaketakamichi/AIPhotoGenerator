@@ -37,21 +37,18 @@ interface StripeWebhookRequest extends Omit<ExpressRequest, 'body'> {
 }
 
 // Handler types
-type RequestHandler<T = Request> = (
-  req: T,
-  res: Response,
-  next: NextFunction
-) => Promise<void | Response> | void;
-
-type RouteHandler = RequestHandler<Request>;
-type AuthenticatedHandler = RequestHandler<AuthenticatedRequest>;
-type GoogleAuthHandler = RequestHandler<Request>;
+type RequestHandler<P = Record<string, string>, ResBody = any, ReqBody = any> = ExpressRequestHandler<P, ResBody, ReqBody>;
 
 // Express middleware types
-type ExpressMiddleware = ExpressRequestHandler;
+type AsyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) => ExpressRequestHandler;
 
-const asyncHandler = (fn: RequestHandler): ExpressRequestHandler => 
-  (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+const asyncHandler: AsyncHandler = (fn) => async (req, res, next) => {
+  try {
+    await fn(req, res, next);
+  } catch (error) {
+    next(error);
+  }
+};
 
 const requireAuth: ExpressRequestHandler = (req, res, next) => {
   if (!req.user) {
@@ -163,19 +160,19 @@ export function registerRoutes(app: express.Application) {
     })(req, res, next);
   }) as ExpressRequestHandler);
 
-  app.get('/api/auth/user', asyncHandler(async (req: Request, res: Response) => {
+  app.get('/api/auth/user', ((req, res) => {
     if (req.user) {
       res.json(req.user);
     } else {
       res.status(401).json({ error: 'Not authenticated' });
     }
-  }));
+  }) as ExpressRequestHandler);
 
-  app.post('/api/auth/logout', asyncHandler(async (req: Request, res: Response) => {
+  app.post('/api/auth/logout', ((req, res) => {
     req.logout(() => {
       res.json({ success: true });
     });
-  }));
+  }) as ExpressRequestHandler);
 
   // Stripe payment endpoint
   app.post('/api/create-checkout-session', requireAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
@@ -222,12 +219,12 @@ export function registerRoutes(app: express.Application) {
   }));
 
   // Stripe webhook endpoint
-  app.post('/api/stripe-webhook', ((req, res, next) => {
+  app.post('/api/stripe-webhook', asyncHandler(async (req: Request, res: Response) => {
     const webhookReq = req as StripeWebhookRequest;
     console.log('=== Stripe Webhook Debug Logs ===');
     try {
         console.log('1. Request body type:', typeof req.body);
-        console.log('2. Raw body available:', !!req.rawBody);
+        console.log('2. Raw body available:', !!webhookReq.rawBody);
         console.log('3. Headers:', JSON.stringify(req.headers, null, 2));
         
         const sig = req.headers['stripe-signature'];
@@ -242,13 +239,13 @@ export function registerRoutes(app: express.Application) {
           return res.status(500).json({ error: 'Webhook secret is not configured' });
         }
 
-        if (!req.rawBody) {
+        if (!webhookReq.rawBody) {
           console.error('8. Request raw body is missing');
           return res.status(400).json({ error: 'No raw body available' });
         }
 
         const event = stripe.webhooks.constructEvent(
-          req.rawBody,
+          webhookReq.rawBody,
           sig,
           webhookSecret
         );
@@ -295,8 +292,7 @@ export function registerRoutes(app: express.Application) {
         
         return res.status(500).json({ error: 'Internal server error in webhook handler' });
       }
-    }
-  );
+    }));
 
   // File upload endpoint
   app.post(
@@ -307,7 +303,7 @@ export function registerRoutes(app: express.Application) {
       { name: "photo3", maxCount: 1 },
       { name: "photo4", maxCount: 1 },
     ]),
-    asyncHandler(async (req: Request & { files: { [fieldname: string]: Express.Multer.File[] } }, res: Response) => {
+    asyncHandler(async (req: Request & { files?: { [fieldname: string]: Express.Multer.File[] } }, res: Response) => {
       try {
         const files = req.files;
 
@@ -370,7 +366,7 @@ export function registerRoutes(app: express.Application) {
 
   // Training endpoint
   app.post("/api/train", requireAuth,
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    asyncHandler(async (req: Request, res: Response) => {
       try {
         console.log("Training API Environment:", process.env.AI_TRAINING_API_ENV);
 
