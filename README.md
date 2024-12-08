@@ -104,35 +104,59 @@ npm run start
 ```
 
 ### Payment Integration
-- **Create Payment Intent**
-  - **Endpoint**: `POST /api/payment/create-intent`
+
+#### Stripe Setup
+1. Configure Stripe environment variables:
+```env
+STRIPE_PUBLIC_KEY=your_stripe_public_key
+STRIPE_SECRET_KEY=your_stripe_secret_key
+STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
+```
+
+2. Credit System:
+- Training a new model costs 20 credits
+- Generating an image costs 1 credit
+- Credits can be purchased through the Charge page
+
+#### API Endpoints
+
+- **Create Checkout Session**
+  - **Endpoint**: `POST /api/create-checkout-session`
+  - **Description**: Creates a Stripe checkout session for credit purchase
+  - **Authentication**: Required
   - **Body**:
   ```json
   {
-    "amount": number,
-    "currency": "usd"
+    "credits": number,
+    "amount": number
   }
   ```
-  - **Response**:
+  - **Response**: Stripe session ID
   ```json
   {
-    "clientSecret": string
+    "id": "cs_test_..."
   }
   ```
 
 - **Webhook Handler**
-  - **Endpoint**: `POST /api/payment/webhook`
-  - **Description**: Handles Stripe webhook events for payment confirmations and failures
+  - **Endpoint**: `POST /api/stripe-webhook`
+  - **Description**: Handles successful payments and updates user credits
   - **Headers**:
-    - `stripe-signature`: Stripe webhook signature
+    - `stripe-signature`: Webhook signature for verification
+  - **Events Handled**:
+    - `checkout.session.completed`: Credits are added to user account
   - **Response**: 200 OK on success
 
-- **Get User Credits**
-  - **Endpoint**: `GET /api/user/credits`
+- **User Credits**
+  - **Endpoint**: `GET /api/auth/user`
+  - **Description**: Get current user info including credits
+  - **Authentication**: Required
   - **Response**:
   ```json
   {
-    "credits": number
+    "id": number,
+    "email": string,
+    "credit": number
   }
   ```
 
