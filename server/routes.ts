@@ -5,13 +5,13 @@ import { dirname } from "path";
 import express, { 
   Request as ExpressRequest, 
   Response, 
-  NextFunction, 
-  RequestHandler as ExpressRequestHandler
+  NextFunction,
+  RequestHandler
 } from "express";
 import { ParamsDictionary } from "express-serve-static-core";
 import { ParsedQs } from "qs";
 import multer from "multer";
-import { mkdir, readFile, unlink, readdir } from "fs/promises";
+import { mkdir, readFile, unlink } from "fs/promises";
 import { db } from "./db";
 import { uploads, training_models, generated_photos, users } from "./db/schema";
 import { eq, desc, sql } from "drizzle-orm";
@@ -20,6 +20,7 @@ import { fal } from "@fal-ai/client";
 import passport from "./auth";
 import session from "express-session";
 import Stripe from 'stripe';
+import { AuthenticateOptions } from "passport-google-oauth20";
 
 // Base interfaces
 interface User {
@@ -29,36 +30,21 @@ interface User {
   created_at: Date;
 }
 
-// Extend Express namespace
-declare global {
-  namespace Express {
-    interface User {
-      id: number;
-      email: string;
-      credit: number;
-      created_at: Date;
-    }
-  }
-}
-
 // Extended Request type with proper Multer file handling and authentication
 interface CustomRequest extends Omit<ExpressRequest, 'files'> {
   rawBody?: Buffer;
   files?: { [fieldname: string]: Express.Multer.File[] };
   user?: Express.User;
-  logIn(user: Express.User, done: (err: any) => void): void;
-  logIn(user: Express.User, options: any, done: (err: any) => void): void;
-  logout(options: Record<string, any>, done: (err: any) => void): void;
   logout(done: (err: any) => void): void;
-  isAuthenticated(): boolean;
+
 }
 
-interface StripeWebhookRequest extends CustomRequest {
-  rawBody: Buffer;
+interface AuthenticatedRequest extends CustomRequest {
+  user: Express.User;
 }
 
-// Type guard to check if request is authenticated
-function isAuthenticatedRequest(req: CustomRequest): req is (CustomRequest & { user: Express.User }) {
+// Type guard for authenticated requests
+function isAuthenticatedRequest(req: CustomRequest): req is AuthenticatedRequest {
   return req.user !== undefined;
 }
 
@@ -83,7 +69,7 @@ const asyncHandler: AsyncHandler = (fn) => async (req, res, next) => {
   }
 };
 
-const requireAuth: ExpressRequestHandler = (req, res, next) => {
+const requireAuth: RequestHandler = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
@@ -109,10 +95,7 @@ const storage = multer.diskStorage({
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(
-      null,
-      file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname),
-    );
+    cb(null, file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname));
   },
 });
 
@@ -133,18 +116,18 @@ const upload = multer({
 export function registerRoutes(app: express.Application) {
   // Session middleware
   app.use(session({
-    secret: process.env.SESSION_SECRET || 'development-secret-key-do-not-use-in-production-9812734',
+    secret: process.env.SESSION_SECRET || 'development-secret-key',
     resave: false,
     saveUninitialized: false,
     proxy: true,
     cookie: {
       secure: true,
-      sameSite: 'lax',
+      sameSite: 'none',
       maxAge: 24 * 60 * 60 * 1000
     }
   }));
 
-  // Initialize Passport and restore authentication state from session
+  // Initialize Passport
   app.use(passport.initialize());
   app.use(passport.session());
 
@@ -154,19 +137,23 @@ export function registerRoutes(app: express.Application) {
     const host = req.headers['x-forwarded-host'] || req.get('host');
     const callbackUrl = `${protocol}://${host}/auth/google/callback`;
     
-    passport.authenticate('google', {
+    const authOptions: AuthenticateOptions = {
       scope: ['profile', 'email'],
       callbackURL: callbackUrl,
       successRedirect: '/',
       failureRedirect: '/auth?error=authentication_failed'
-    })(req, res, next);
+    };
+    
+    passport.authenticate('google', authOptions)(req, res, next);
   });
 
   app.get('/auth/google/callback', (req: CustomRequest, res: Response, next: NextFunction) => {
-    passport.authenticate('google', {
+    const authOptions: AuthenticateOptions = {
       failureRedirect: '/auth?error=authentication_failed',
       successRedirect: '/'
-    })(req, res, next);
+    };
+    
+    passport.authenticate('google', authOptions)(req, res, next);
   });
 
   app.get('/api/auth/user', asyncHandler(async (req: CustomRequest, res: Response) => {
@@ -178,9 +165,6 @@ export function registerRoutes(app: express.Application) {
   }));
 
   app.post('/api/auth/logout', asyncHandler(async (req: CustomRequest, res: Response) => {
-    if (!req.logout) {
-      throw new Error('Logout function not available');
-    }
     req.logout((err) => {
       if (err) {
         throw err;
@@ -190,11 +174,7 @@ export function registerRoutes(app: express.Application) {
   }));
 
   // Stripe payment endpoint
-  app.post('/api/create-checkout-session', requireAuth, asyncHandler(async (req: CustomRequest, res: Response) => {
-    if (!isAuthenticatedRequest(req)) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-
+  app.post('/api/create-checkout-session', requireAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { credits, amount } = req.body;
     
     if (!credits || !amount) {
@@ -229,7 +209,7 @@ export function registerRoutes(app: express.Application) {
   }));
 
   // Stripe webhook endpoint
-  app.post('/api/stripe-webhook', asyncHandler(async (req: StripeWebhookRequest, res: Response) => {
+  app.post('/api/stripe-webhook', asyncHandler(async (req: CustomRequest & {rawBody: Buffer}, res: Response) => {
     try {
       const sig = req.headers['stripe-signature'];
       if (!sig) {
@@ -359,11 +339,7 @@ export function registerRoutes(app: express.Application) {
   );
 
   // Training endpoint
-  app.post("/api/train", requireAuth, asyncHandler(async (req: CustomRequest, res: Response) => {
-    if (!isAuthenticatedRequest(req)) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-
+  app.post("/api/train", requireAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { falUrl } = req.body;
 
     if (!falUrl) {
@@ -450,11 +426,7 @@ export function registerRoutes(app: express.Application) {
   }));
 
   // Get user's training models endpoint
-  app.get("/api/models", requireAuth, asyncHandler(async (req: CustomRequest, res: Response) => {
-    if (!isAuthenticatedRequest(req)) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-
+  app.get("/api/models", requireAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const models = await db
       .select({
         id: training_models.id,
@@ -471,11 +443,7 @@ export function registerRoutes(app: express.Application) {
   }));
 
   // Generate image endpoint
-  app.post("/api/generate", requireAuth, asyncHandler(async (req: CustomRequest, res: Response) => {
-    if (!isAuthenticatedRequest(req)) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-
+  app.post("/api/generate", requireAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { modelId, loraUrl, prompt } = req.body;
 
     if (!modelId || !loraUrl || !prompt) {
@@ -564,11 +532,7 @@ export function registerRoutes(app: express.Application) {
   }));
 
   // Get user's generated photos endpoint
-  app.get("/api/photos", requireAuth, asyncHandler(async (req: CustomRequest, res: Response) => {
-    if (!isAuthenticatedRequest(req)) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-
+  app.get("/api/photos", requireAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const photos = await db
       .select({
         id: generated_photos.id,
