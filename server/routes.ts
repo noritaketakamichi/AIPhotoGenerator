@@ -40,7 +40,8 @@ declare global {
 }
 
 // Extended Request type to include all possible properties
-interface CustomRequest extends ExpressRequest {
+// Extended Request type with proper file handling
+interface CustomRequest extends Omit<ExpressRequest, 'files'> {
   rawBody?: Buffer;
   files?: {
     [fieldname: string]: Express.Multer.File[];
@@ -55,7 +56,7 @@ type Request<
   ReqBody = any,
   ReqQuery = ParsedQs,
   Locals extends Record<string, any> = Record<string, any>
-> = CustomRequest & ExpressRequest<P, ResBody, ReqBody, ReqQuery, Locals>;
+> = CustomRequest & Omit<ExpressRequest<P, ResBody, ReqBody, ReqQuery, Locals>, keyof CustomRequest>;
 
 // Extend the express session interface
 declare module 'express-session' {
@@ -195,9 +196,10 @@ export function registerRoutes(app: express.Application) {
       const callbackUrl = `${protocol}://${host}/auth/google/callback`;
       
       passport.authenticate('google', {
-        scope: ['profile', 'email'],
-        callbackURL: callbackUrl,
-      })(req, res, next);
+        successRedirect: '/',
+        failureRedirect: '/auth?error=authentication_failed',
+        scope: ['profile', 'email']
+      } as any)(req, res, next);
     }
   ) as RequestHandler);
 
