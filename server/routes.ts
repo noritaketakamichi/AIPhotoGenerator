@@ -18,7 +18,17 @@ interface Request extends Omit<ExpressRequest, 'user'> {
   };
 }
 
-type RequestHandler = ExpressRequestHandler<any, any, any, any, Record<string, any>>;
+type RouteHandler = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => Promise<void | Response> | void;
+
+type AuthRouteHandler = (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => Promise<void | Response> | void;
 
 interface AuthenticatedRequest extends Request {
   user: User;
@@ -28,8 +38,16 @@ interface StripeWebhookRequest extends Request {
   rawBody: Buffer;
 }
 
-type AuthenticatedRequestHandler = ExpressRequestHandler<any, any, any, any, { user: User }>;
-type StripeWebhookRequestHandler = ExpressRequestHandler<any, any, any, any, { rawBody: Buffer }>;
+const asyncHandler = (fn: RouteHandler): RouteHandler => (req, res, next) => {
+  return Promise.resolve(fn(req, res, next)).catch(next);
+};
+
+const requireAuth = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  next();
+};
 
 import multer from "multer";
 import { mkdir, readFile, unlink, readdir } from "fs/promises";
@@ -99,61 +117,57 @@ export function registerRoutes(app: express.Application) {
   app.use(passport.session());
 
   // Auth routes
-  app.get('/auth/google', 
-    (req: Request, res: Response, next: NextFunction) => {
-      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-      const host = req.headers['x-forwarded-host'] || req.get('host');
-      const callbackUrl = `${protocol}://${host}/auth/google/callback`;
-      
-      passport.authenticate('google', {
-        scope: ['profile', 'email'],
-        state: true,
-        session: true,
-        callbackURL: callbackUrl
-      })(req, res, next);
-    }
-  );
+  app.get('/auth/google', (req: Request, res: Response, next: NextFunction) => {
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    const callbackUrl = `${protocol}://${host}/auth/google/callback`;
+    
+    const authOptions = {
+      scope: ['profile', 'email'],
+      callbackURL: callbackUrl,
+      session: true
+    };
+    
+    passport.authenticate('google', authOptions)(req, res, next);
+  });
 
-  app.get('/auth/google/callback',
-    (req: Request, res: Response, next: NextFunction) => {
-      passport.authenticate('google', { session: true },
-        (err: Error | null, user: User | undefined, info?: any) => {
-          if (err) {
-            return res.redirect('/auth?error=' + encodeURIComponent(err.message));
-          }
-          
-          if (!user) {
-            return res.redirect('/auth?error=authentication_failed');
-          }
-
-          req.logIn(user, (err) => {
-            if (err) {
-              return res.redirect('/auth?error=' + encodeURIComponent(err.message));
-            }
-            res.redirect('/');
-          });
+  app.get('/auth/google/callback', (req: Request, res: Response, next: NextFunction) => {
+    const authHandler = passport.authenticate('google', 
+      { failureRedirect: '/auth?error=authentication_failed' },
+      (err: Error | null, user: User | undefined) => {
+        if (err) {
+          return res.redirect('/auth?error=' + encodeURIComponent(err.message));
         }
-      )(req, res, next);
-    }
-  );
+        
+        if (!user) {
+          return res.redirect('/auth?error=authentication_failed');
+        }
 
-  app.get('/api/auth/user',
-    (req: Request, res: Response) => {
-      if (req.user) {
-        res.json(req.user);
-      } else {
-        res.status(401).json({ error: 'Not authenticated' });
+        req.logIn(user, (loginErr) => {
+          if (loginErr) {
+            return res.redirect('/auth?error=' + encodeURIComponent(loginErr.message));
+          }
+          res.redirect('/');
+        });
       }
-    }
-  );
+    );
+    
+    authHandler(req, res, next);
+  });
 
-  app.post('/api/auth/logout',
-    (req: Request, res: Response) => {
-      req.logout(() => {
-        res.json({ success: true });
-      });
+  app.get('/api/auth/user', asyncHandler(async (req: Request, res: Response) => {
+    if (req.user) {
+      res.json(req.user);
+    } else {
+      res.status(401).json({ error: 'Not authenticated' });
     }
-  );
+  }));
+
+  app.post('/api/auth/logout', asyncHandler(async (req: Request, res: Response) => {
+    req.logout(() => {
+      res.json({ success: true });
+    });
+  }));
 
   // Stripe payment endpoint
   app.post('/api/create-checkout-session',

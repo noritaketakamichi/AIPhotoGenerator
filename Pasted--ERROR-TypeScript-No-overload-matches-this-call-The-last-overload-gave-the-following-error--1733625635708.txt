@@ -1,0 +1,177 @@
+ ERROR(TypeScript)  No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: Request, res: Response, next: NextFunction) => void' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: Request, res: Response<any, Record<string, any>>, next: NextFunction) => void' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+ FILE  /home/runner/AI-photo-generator/server/routes.ts:103:5
+
+    101 |   // Auth routes
+    102 |   app.get('/auth/google', 
+  > 103 |     (req: Request, res: Response, next: NextFunction) => {
+        |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    104 |       const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    105 |       const host = req.headers['x-forwarded-host'] || req.get('host');
+    106 |       const callbackUrl = `${protocol}://${host}/auth/google/callback`;
+
+ ERROR(TypeScript)  No overload matches this call.
+  Overload 1 of 3, '(strategy: "google", options: AuthenticateOptionsGoogle, callback?: ((...args: any[]) => any) | undefined): any', gave the following error.
+    Type 'boolean' is not assignable to type 'string'.
+  Overload 2 of 3, '(strategy: string | string[] | Strategy, callback?: AuthenticateCallback | ((...args: any[]) => any) | undefined): any', gave the following error.
+    Object literal may only specify known properties, and 'scope' does not exist in type 'AuthenticateCallback | ((...args: any[]) => any)'.
+  Overload 3 of 3, '(strategy: string | string[] | Strategy, options: AuthenticateOptions, callback?: AuthenticateCallback | ((...args: any[]) => any) | undefined): any', gave the following error.
+    Type 'boolean' is not assignable to type 'string'.
+ FILE  /home/runner/AI-photo-generator/server/routes.ts:108:16
+
+    106 |       const callbackUrl = `${protocol}://${host}/auth/google/callback`;
+    107 |       
+  > 108 |       passport.authenticate('google', {
+        |                ^^^^^^^^^^^^
+    109 |         scope: ['profile', 'email'],
+    110 |         state: true,
+    111 |         session: true,
+
+ ERROR(TypeScript)  No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: Request, res: Response, next: NextFunction) => void' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: Request, res: Response<any, Record<string, any>>, next: NextFunction) => void' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+ FILE  /home/runner/AI-photo-generator/server/routes.ts:118:5
+
+    116 |
+    117 |   app.get('/auth/google/callback',
+  > 118 |     (req: Request, res: Response, next: NextFunction) => {
+        |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    119 |       passport.authenticate('google', { session: true },
+    120 |         (err: Error | null, user: User | undefined, info?: any) => {
+    121 |           if (err) {
+
+ ERROR(TypeScript)  No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: Request, res: Response) => void' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: Request, res: Response<any, Record<string, any>>) => void' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+ FILE  /home/runner/AI-photo-generator/server/routes.ts:141:5
+
+    139 |
+    140 |   app.get('/api/auth/user',
+  > 141 |     (req: Request, res: Response) => {
+        |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    142 |       if (req.user) {
+    143 |         res.json(req.user);
+    144 |       } else {
+
+ ERROR(TypeScript)  No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: Request, res: Response) => void' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: Request, res: Response<any, Record<string, any>>) => void' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+ FILE  /home/runner/AI-photo-generator/server/routes.ts:151:5
+
+    149 |
+    150 |   app.post('/api/auth/logout',
+  > 151 |     (req: Request, res: Response) => {
+        |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    152 |       req.logout(() => {
+    153 |         res.json({ success: true });
+    154 |       });
+
+ ERROR(TypeScript)  No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthenticatedRequest, res: Response) => Promise<express.Response<any, Record<string, any>> | undefined>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthenticatedRequest, res: Response<any, Record<string, any>>) => Promise<Response<any, Record<string, any>> | undefined>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+ FILE  /home/runner/AI-photo-generator/server/routes.ts:160:5
+
+    158 |   // Stripe payment endpoint
+    159 |   app.post('/api/create-checkout-session',
+  > 160 |     async (req: AuthenticatedRequest, res: Response) => {
+        |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    161 |       try {
+    162 |         if (!req.user?.id) {
+    163 |           return res.status(401).json({ error: 'Authentication required' });
+
+ ERROR(TypeScript)  No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: StripeWebhookRequest, res: Response) => Promise<express.Response<any, Record<string, any>> | undefined>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: StripeWebhookRequest, res: Response<any, Record<string, any>>) => Promise<Response<any, Record<string, any>> | undefined>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+ FILE  /home/runner/AI-photo-generator/server/routes.ts:206:5
+
+    204 |   // Stripe webhook endpoint
+    205 |   app.post('/api/stripe-webhook',
+  > 206 |     async (req: StripeWebhookRequest, res: Response) => {
+        |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    207 |       console.log('=== Stripe Webhook Debug Logs ===');
+    208 |       try {
+    209 |         console.log('1. Request body type:', typeof req.body);
+
+ ERROR(TypeScript)  No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: Request, res: Response) => Promise<express.Response<any, Record<string, any>> | undefined>' is not assignable to parameter of type 'RequestHandlerParams<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+      Type '(req: Request, res: Response) => Promise<express.Response<any, Record<string, any>> | undefined>' is not assignable to type 'RequestHandler<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+        Types of parameters 'req' and 'req' are incompatible.
+          Type 'Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>' is not assignable to type 'Request'.
+            Types of property 'user' are incompatible.
+              Type 'Express.User | undefined' is not assignable to type 'User | undefined'.
+                Type 'User' is missing the following properties from type 'User': id, email, credit
+ FILE  /home/runner/AI-photo-generator/server/routes.ts:290:5
+
+    288 |       { name: "photo4", maxCount: 1 },
+    289 |     ]) as RequestHandler,
+  > 290 |     async (req: Request, res: Response) => {
+        |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    291 |       try {
+    292 |         const files = req.files;
+    293 |
+
+ ERROR(TypeScript)  No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthenticatedRequest, res: Response) => Promise<express.Response<any, Record<string, any>> | undefined>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthenticatedRequest, res: Response<any, Record<string, any>>) => Promise<Response<any, Record<string, any>> | undefined>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+ FILE  /home/runner/AI-photo-generator/server/routes.ts:353:5
+
+    351 |   // Training endpoint
+    352 |   app.post("/api/train",
+  > 353 |     async (req: AuthenticatedRequest, res: Response) => {
+        |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    354 |       try {
+    355 |         console.log("Training API Environment:", process.env.AI_TRAINING_API_ENV);
+    356 |
+
+ ERROR(TypeScript)  No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthenticatedRequest, res: Response) => Promise<express.Response<any, Record<string, any>> | undefined>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthenticatedRequest, res: Response<any, Record<string, any>>) => Promise<Response<any, Record<string, any>> | undefined>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+ FILE  /home/runner/AI-photo-generator/server/routes.ts:474:5
+
+    472 |   // Get user's training models endpoint
+    473 |   app.get("/api/models",
+  > 474 |     async (req: AuthenticatedRequest, res: Response) => {
+        |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    475 |       try {
+    476 |         if (!req.user?.id) {
+    477 |           return res.status(401).json({ error: "Authentication required" });
+
+ ERROR(TypeScript)  No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthenticatedRequest, res: Response) => Promise<express.Response<any, Record<string, any>> | undefined>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthenticatedRequest, res: Response<any, Record<string, any>>) => Promise<Response<any, Record<string, any>> | undefined>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+ FILE  /home/runner/AI-photo-generator/server/routes.ts:502:5
+
+    500 |   // Generate image endpoint
+    501 |   app.post("/api/generate",
+  > 502 |     async (req: AuthenticatedRequest, res: Response) => {
+        |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    503 |       try {
+    504 |         const { modelId, loraUrl, prompt } = req.body;
+    505 |
+
+ ERROR(TypeScript)  No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: AuthenticatedRequest, res: Response) => Promise<express.Response<any, Record<string, any>> | undefined>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: AuthenticatedRequest, res: Response<any, Record<string, any>>) => Promise<Response<any, Record<string, any>> | undefined>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+ FILE  /home/runner/AI-photo-generator/server/routes.ts:609:5
+
+    607 |   // Get user's generated photos endpoint
+    608 |   app.get("/api/photos",
+  > 609 |     async (req: AuthenticatedRequest, res: Response) => {
+        |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    610 |       try {
+    611 |         if (!req.user?.id) {
+    612 |           return res.status(401).json({ error: "Authentication required" });
+
+[TypeScript] Found 12 errors. Watching for file changes.
