@@ -172,43 +172,36 @@ export function registerRoutes(app: express.Application) {
   app.use(passport.session());
 
   // Auth routes
-  app.get('/auth/google', (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-      const host = req.headers['x-forwarded-host'] || req.get('host');
-      const callbackUrl = `${protocol}://${host}/auth/google/callback`;
-      
-      passport.authenticate('google', {
-        scope: ['profile', 'email']
-      })(req, res, next);
-    } catch (error) {
-      next(error);
-    }
+  app.get('/auth/google', ((req: Request, res: Response, next: NextFunction) => {
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    const callbackUrl = `${protocol}://${host}/auth/google/callback`;
+    
+    passport.authenticate('google', {
+      scope: ['profile', 'email'],
+      callbackURL: callbackUrl
+    })(req, res, next);
   }) as RequestHandler);
 
-  app.get('/auth/google/callback', (req: Request, res: Response, next: NextFunction) => {
-    try {
-      passport.authenticate('google', {
-        failureRedirect: '/auth?error=authentication_failed'
-      }, (err: Error | null, user: Express.User | false | null) => {
-        if (err) {
-          return res.redirect('/auth?error=' + encodeURIComponent(err.message));
-        }
-        
-        if (!user) {
-          return res.redirect('/auth?error=authentication_failed');
-        }
+  app.get('/auth/google/callback', ((req: Request, res: Response, next: NextFunction) => {
+    passport.authenticate('google', {
+      failureRedirect: '/auth?error=authentication_failed'
+    }, (err: Error | null, user: Express.User | false | null) => {
+      if (err) {
+        return res.redirect('/auth?error=' + encodeURIComponent(err.message));
+      }
+      
+      if (!user) {
+        return res.redirect('/auth?error=authentication_failed');
+      }
 
-        req.logIn(user, (loginErr) => {
-          if (loginErr) {
-            return res.redirect('/auth?error=' + encodeURIComponent(loginErr.message));
-          }
-          res.redirect('/');
-        });
-      })(req, res, next);
-    } catch (error) {
-      next(error);
-    }
+      req.logIn(user, (loginErr) => {
+        if (loginErr) {
+          return res.redirect('/auth?error=' + encodeURIComponent(loginErr.message));
+        }
+        res.redirect('/');
+      });
+    })(req, res, next);
   }) as RequestHandler);
 
   app.get('/api/auth/user', (async (req: Request, res: Response, next: NextFunction) => {
