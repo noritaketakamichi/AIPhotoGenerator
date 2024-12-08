@@ -22,25 +22,19 @@ interface Request extends Omit<ExpressRequest, 'user'> {
 }
 
 // Extended Request interfaces
-interface AuthenticatedRequest extends Omit<ExpressRequest, 'user'> {
+interface AuthenticatedRequest extends Request {
   user: User;
-  files?: {
-    [fieldname: string]: Express.Multer.File[];
-  };
-  logIn?: (user: User, done: (err: any) => void) => void;
-  logout?: (done: (err: any) => void) => void;
 }
 
-interface StripeWebhookRequest extends Omit<ExpressRequest, 'body'> {
+interface StripeWebhookRequest extends Request {
   rawBody: Buffer;
-  body: any;
 }
 
 // Handler types
-type RequestHandler<P = Record<string, string>, ResBody = any, ReqBody = any> = ExpressRequestHandler<P, ResBody, ReqBody>;
+type RequestHandler = ExpressRequestHandler;
 
 // Express middleware types
-type AsyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) => ExpressRequestHandler;
+type AsyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) => RequestHandler;
 
 const asyncHandler: AsyncHandler = (fn) => async (req, res, next) => {
   try {
@@ -50,7 +44,7 @@ const asyncHandler: AsyncHandler = (fn) => async (req, res, next) => {
   }
 };
 
-const requireAuth: ExpressRequestHandler = (req, res, next) => {
+const requireAuth: RequestHandler = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
@@ -135,7 +129,7 @@ export function registerRoutes(app: express.Application) {
       callbackURL: callbackUrl,
       session: true
     })(req, res, next);
-  }) as ExpressRequestHandler);
+  }) as RequestHandler);
 
   app.get('/auth/google/callback', ((req, res, next) => {
     passport.authenticate('google', {
@@ -158,7 +152,7 @@ export function registerRoutes(app: express.Application) {
         res.redirect('/');
       });
     })(req, res, next);
-  }) as ExpressRequestHandler);
+  }) as RequestHandler);
 
   app.get('/api/auth/user', ((req, res) => {
     if (req.user) {
@@ -166,56 +160,56 @@ export function registerRoutes(app: express.Application) {
     } else {
       res.status(401).json({ error: 'Not authenticated' });
     }
-  }) as ExpressRequestHandler);
+  }) as RequestHandler);
 
   app.post('/api/auth/logout', ((req, res) => {
     req.logout(() => {
       res.json({ success: true });
     });
-  }) as ExpressRequestHandler);
+  }) as RequestHandler);
 
   // Stripe payment endpoint
   app.post('/api/create-checkout-session', requireAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        if (!req.user?.id) {
-          return res.status(401).json({ error: 'Authentication required' });
-        }
-
-        const { credits, amount } = req.body;
-        
-        if (!credits || !amount) {
-          return res.status(400).json({ error: 'Credits and amount are required' });
-        }
-
-        const session = await stripe.checkout.sessions.create({
-          payment_method_types: ['card'],
-          line_items: [
-            {
-              price_data: {
-                currency: 'usd',
-                product_data: {
-                  name: `${credits} Credits`,
-                  description: 'Credits for generating AI images',
-                },
-                unit_amount: amount * 100, // Convert to cents
-              },
-              quantity: 1,
-            },
-          ],
-          mode: 'payment',
-          success_url: `${req.headers.origin}/charge/success?session_id={CHECKOUT_SESSION_ID}&credits=${credits}`,
-          cancel_url: `${req.headers.origin}/charge`,
-          metadata: {
-            userId: req.user.id,
-            credits: credits,
-          },
-        });
-
-        res.json({ id: session.id });
-      } catch (error) {
-        console.error('Stripe session creation error:', error);
-        res.status(500).json({ error: 'Failed to create checkout session' });
+    try {
+      if (!req.user?.id) {
+        return res.status(401).json({ error: 'Authentication required' });
       }
+
+      const { credits, amount } = req.body;
+      
+      if (!credits || !amount) {
+        return res.status(400).json({ error: 'Credits and amount are required' });
+      }
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: `${credits} Credits`,
+                description: 'Credits for generating AI images',
+              },
+              unit_amount: amount * 100, // Convert to cents
+            },
+            quantity: 1,
+          },
+        ],
+        mode: 'payment',
+        success_url: `${req.headers.origin}/charge/success?session_id={CHECKOUT_SESSION_ID}&credits=${credits}`,
+        cancel_url: `${req.headers.origin}/charge`,
+        metadata: {
+          userId: req.user.id,
+          credits: credits,
+        },
+      });
+
+      res.json({ id: session.id });
+    } catch (error) {
+      console.error('Stripe session creation error:', error);
+      res.status(500).json({ error: 'Failed to create checkout session' });
+    }
   }));
 
   // Stripe webhook endpoint
@@ -223,76 +217,76 @@ export function registerRoutes(app: express.Application) {
     const webhookReq = req as StripeWebhookRequest;
     console.log('=== Stripe Webhook Debug Logs ===');
     try {
-        console.log('1. Request body type:', typeof req.body);
-        console.log('2. Raw body available:', !!webhookReq.rawBody);
-        console.log('3. Headers:', JSON.stringify(req.headers, null, 2));
-        
-        const sig = req.headers['stripe-signature'];
-        if (!sig) {
-          console.error('4. Missing stripe signature');
-          return res.status(400).json({ error: 'No Stripe signature found' });
-        }
-
-        const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-        if (!webhookSecret) {
-          console.error('6. Webhook secret is missing');
-          return res.status(500).json({ error: 'Webhook secret is not configured' });
-        }
-
-        if (!webhookReq.rawBody) {
-          console.error('8. Request raw body is missing');
-          return res.status(400).json({ error: 'No raw body available' });
-        }
-
-        const event = stripe.webhooks.constructEvent(
-          webhookReq.rawBody,
-          sig,
-          webhookSecret
-        );
-
-        if (event.type === 'checkout.session.completed') {
-          const session = event.data.object as Stripe.Checkout.Session;
-          
-          const userId = session.metadata?.userId;
-          const credits = parseInt(session.metadata?.credits || '0');
-
-          if (!userId || !credits) {
-            return res.status(400).json({ error: 'Invalid session metadata' });
-          }
-
-          const [currentUser] = await db
-            .select({ credit: users.credit })
-            .from(users)
-            .where(eq(users.id, parseInt(userId)));
-
-          if (!currentUser) {
-            return res.status(404).json({ error: 'User not found' });
-          }
-
-          const newCreditAmount = (currentUser.credit || 0) + credits;
-
-          await db
-            .update(users)
-            .set({ credit: newCreditAmount })
-            .where(eq(users.id, parseInt(userId)));
-        }
-
-        res.json({ received: true });
-      } catch (error: any) {
-        console.error('Webhook processing error:', {
-          name: error.name,
-          message: error.message,
-          type: error.type,
-          stack: error.stack
-        });
-        
-        if (error.type === 'StripeSignatureVerificationError') {
-          return res.status(400).json({ error: 'Webhook signature verification failed' });
-        }
-        
-        return res.status(500).json({ error: 'Internal server error in webhook handler' });
+      console.log('1. Request body type:', typeof req.body);
+      console.log('2. Raw body available:', !!webhookReq.rawBody);
+      console.log('3. Headers:', JSON.stringify(req.headers, null, 2));
+      
+      const sig = req.headers['stripe-signature'];
+      if (!sig) {
+        console.error('4. Missing stripe signature');
+        return res.status(400).json({ error: 'No Stripe signature found' });
       }
-    }));
+
+      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+      if (!webhookSecret) {
+        console.error('6. Webhook secret is missing');
+        return res.status(500).json({ error: 'Webhook secret is not configured' });
+      }
+
+      if (!webhookReq.rawBody) {
+        console.error('8. Request raw body is missing');
+        return res.status(400).json({ error: 'No raw body available' });
+      }
+
+      const event = stripe.webhooks.constructEvent(
+        webhookReq.rawBody,
+        sig,
+        webhookSecret
+      );
+
+      if (event.type === 'checkout.session.completed') {
+        const session = event.data.object as Stripe.Checkout.Session;
+        
+        const userId = session.metadata?.userId;
+        const credits = parseInt(session.metadata?.credits || '0');
+
+        if (!userId || !credits) {
+          return res.status(400).json({ error: 'Invalid session metadata' });
+        }
+
+        const [currentUser] = await db
+          .select({ credit: users.credit })
+          .from(users)
+          .where(eq(users.id, parseInt(userId)));
+
+        if (!currentUser) {
+          return res.status(404).json({ error: 'User not found' });
+        }
+
+        const newCreditAmount = (currentUser.credit || 0) + credits;
+
+        await db
+          .update(users)
+          .set({ credit: newCreditAmount })
+          .where(eq(users.id, parseInt(userId)));
+      }
+
+      res.json({ received: true });
+    } catch (error: any) {
+      console.error('Webhook processing error:', {
+        name: error.name,
+        message: error.message,
+        type: error.type,
+        stack: error.stack
+      });
+      
+      if (error.type === 'StripeSignatureVerificationError') {
+        return res.status(400).json({ error: 'Webhook signature verification failed' });
+      }
+      
+      return res.status(500).json({ error: 'Internal server error in webhook handler' });
+    }
+  }));
 
   // File upload endpoint
   app.post(
@@ -361,294 +355,286 @@ export function registerRoutes(app: express.Application) {
         console.error("Upload error:", error);
         res.status(500).json({ error: "Failed to process upload" });
       }
-    }
+    })
   );
 
   // Training endpoint
-  app.post("/api/train", requireAuth,
-    asyncHandler(async (req: Request, res: Response) => {
-      try {
-        console.log("Training API Environment:", process.env.AI_TRAINING_API_ENV);
+  app.post("/api/train", requireAuth, asyncHandler(async (req: Request, res: Response) => {
+    try {
+      console.log("Training API Environment:", process.env.AI_TRAINING_API_ENV);
 
-        const { falUrl } = req.body;
+      const { falUrl } = req.body;
 
-        if (!falUrl) {
-          return res.status(400).json({ error: "FAL URL is required" });
-        }
-
-        const { fal } = await import("@fal-ai/client");
-        fal.config({
-          credentials: process.env.FAL_AI_API_KEY,
-        });
-
-        if (!req.user?.id) {
-          return res.status(401).json({ error: "Authentication required" });
-        }
-
-        const [user] = await db
-          .select()
-          .from(users)
-          .where(eq(users.id, req.user.id));
-
-        if (!user || user.credit < 20) {
-          return res.status(403).json({ 
-            error: "Insufficient credits", 
-            required: 20,
-            available: user?.credit || 0 
-          });
-        }
-
-        await db
-          .update(users)
-          .set({ credit: user.credit - 20 })
-          .where(eq(users.id, req.user.id));
-
-        const [lastModel] = await db
-          .select({ name: training_models.name })
-          .from(training_models)
-          .where(eq(training_models.user_id, req.user.id))
-          .orderBy(desc(training_models.name))
-          .limit(1);
-
-        const nextModelNumber = lastModel 
-          ? parseInt(lastModel.name.replace('model', '')) + 1 
-          : 1;
-        const modelName = `model${nextModelNumber}`;
-
-        let result;
-        if (process.env.AI_TRAINING_API_ENV === "production") {
-          result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
-            input: {
-              steps: 1000,
-              create_masks: true,
-              images_data_url: falUrl,
-            },
-            logs: true,
-            onQueueUpdate: (update) => {
-              if (update.status === "IN_PROGRESS") {
-                update.logs.map((log) => log.message).forEach(console.log);
-              }
-            },
-          });
-        } else {
-          result = {
-            data: {
-              diffusers_lora_file: {
-                url: "https://v3.fal.media/files/penguin/MfKRMr7gp6TqNfttnWt84_pytorch_lora_weights.safetensors",
-                content_type: "application/octet-stream",
-                file_name: "pytorch_lora_weights.safetensors",
-                file_size: 89745224,
-              },
-              config_file: {
-                url: "https://v3.fal.media/files/lion/1_jzXYliDKoqpnsl2ZUap_config.json",
-                content_type: "application/octet-stream",
-                file_name: "config.json",
-                file_size: 452,
-              },
-            },
-          };
-        }
-
-        await db.insert(training_models).values({
-          user_id: req.user.id,
-          name: modelName,
-          training_data_url: result.data.diffusers_lora_file.url,
-          config_url: result.data.config_file.url,
-        });
-
-        try {
-          const uploadDir = path.join(process.cwd(), "uploads");
-          const files = await readdir(uploadDir);
-          
-          for (const file of files) {
-            const filePath = path.join(uploadDir, file);
-            try {
-              await unlink(filePath);
-              console.log(`Successfully deleted: ${file}`);
-            } catch (err) {
-              console.error(`Failed to delete file ${file}:`, err);
-            }
-          }
-          
-          const remainingFiles = await readdir(uploadDir);
-          console.log("Remaining files after deletion:", remainingFiles);
-          
-        } catch (err) {
-          console.error("Error while cleaning uploads directory:", err);
-        }
-
-        res.json(result.data);
-      } catch (error) {
-        console.error("Training error:", error);
-        res.status(500).json({ error: "Training failed" });
+      if (!falUrl) {
+        return res.status(400).json({ error: "FAL URL is required" });
       }
+
+      const { fal } = await import("@fal-ai/client");
+      fal.config({
+        credentials: process.env.FAL_AI_API_KEY,
+      });
+
+      if (!req.user?.id) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, req.user.id));
+
+      if (!user || user.credit < 20) {
+        return res.status(403).json({ 
+          error: "Insufficient credits", 
+          required: 20,
+          available: user?.credit || 0 
+        });
+      }
+
+      await db
+        .update(users)
+        .set({ credit: user.credit - 20 })
+        .where(eq(users.id, req.user.id));
+
+      const [lastModel] = await db
+        .select({ name: training_models.name })
+        .from(training_models)
+        .where(eq(training_models.user_id, req.user.id))
+        .orderBy(desc(training_models.name))
+        .limit(1);
+
+      const nextModelNumber = lastModel 
+        ? parseInt(lastModel.name.replace('model', '')) + 1 
+        : 1;
+      const modelName = `model${nextModelNumber}`;
+
+      let result;
+      if (process.env.AI_TRAINING_API_ENV === "production") {
+        result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
+          input: {
+            steps: 1000,
+            create_masks: true,
+            images_data_url: falUrl,
+          },
+          logs: true,
+          onQueueUpdate: (update) => {
+            if (update.status === "IN_PROGRESS") {
+              update.logs.map((log) => log.message).forEach(console.log);
+            }
+          },
+        });
+      } else {
+        result = {
+          data: {
+            diffusers_lora_file: {
+              url: "https://v3.fal.media/files/mock/mock_lora_weights.safetensors",
+              content_type: "application/octet-stream",
+              file_name: "pytorch_lora_weights.safetensors",
+              file_size: 89745224,
+            },
+            config_file: {
+              url: "https://v3.fal.media/files/mock/mock_config.json",
+              content_type: "application/octet-stream",
+              file_name: "config.json",
+              file_size: 452,
+            },
+          },
+        };
+      }
+
+      await db.insert(training_models).values({
+        user_id: req.user.id,
+        name: modelName,
+        training_data_url: result.data.diffusers_lora_file.url,
+        config_url: result.data.config_file.url,
+      });
+
+      try {
+        const uploadDir = path.join(process.cwd(), "uploads");
+        const files = await readdir(uploadDir);
+        
+        for (const file of files) {
+          const filePath = path.join(uploadDir, file);
+          try {
+            await unlink(filePath);
+            console.log(`Successfully deleted: ${file}`);
+          } catch (err) {
+            console.error(`Failed to delete file ${file}:`, err);
+          }
+        }
+        
+        const remainingFiles = await readdir(uploadDir);
+        console.log("Remaining files after deletion:", remainingFiles);
+        
+      } catch (err) {
+        console.error("Error while cleaning uploads directory:", err);
+      }
+
+      res.json(result.data);
+    } catch (error) {
+      console.error("Training error:", error);
+      res.status(500).json({ error: "Training failed" });
     }
-  );
+  }));
 
   // Get user's training models endpoint
-  app.get("/api/models", requireAuth,
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        if (!req.user?.id) {
-          return res.status(401).json({ error: "Authentication required" });
-        }
-
-        const models = await db
-          .select({
-            id: training_models.id,
-            name: training_models.name,
-            trainingDataUrl: training_models.training_data_url,
-            configUrl: training_models.config_url,
-            createdAt: training_models.created_at,
-          })
-          .from(training_models)
-          .where(eq(training_models.user_id, req.user.id))
-          .orderBy(desc(training_models.created_at));
-
-        res.json(models);
-      } catch (error) {
-        console.error("Error fetching models:", error);
-        res.status(500).json({ error: "Failed to fetch models" });
+  app.get("/api/models", requireAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.user?.id) {
+        return res.status(401).json({ error: "Authentication required" });
       }
+
+      const models = await db
+        .select({
+          id: training_models.id,
+          name: training_models.name,
+          trainingDataUrl: training_models.training_data_url,
+          configUrl: training_models.config_url,
+          createdAt: training_models.created_at,
+        })
+        .from(training_models)
+        .where(eq(training_models.user_id, req.user.id))
+        .orderBy(desc(training_models.created_at));
+
+      res.json(models);
+    } catch (error) {
+      console.error("Error fetching models:", error);
+      res.status(500).json({ error: "Failed to fetch models" });
     }
-  );
+  }));
 
   // Generate image endpoint
-  app.post("/api/generate", requireAuth,
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        const { modelId, loraUrl, prompt } = req.body;
+  app.post("/api/generate", requireAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { modelId, loraUrl, prompt } = req.body;
 
-        if (!modelId || !loraUrl || !prompt) {
-          return res
-            .status(400)
-            .json({ error: "Model ID, LoRA URL, and prompt are required" });
-        }
-
-        const { fal } = await import("@fal-ai/client");
-        fal.config({
-          credentials: process.env.FAL_AI_API_KEY,
-        });
-
-        if (!req.user?.id) {
-          return res.status(401).json({ error: "Authentication required" });
-        }
-
-        const [user] = await db
-          .select()
-          .from(users)
-          .where(eq(users.id, req.user.id));
-
-        if (!user || user.credit < 1) {
-          return res.status(403).json({ 
-            error: "Insufficient credits", 
-            required: 1,
-            available: user?.credit || 0 
-          });
-        }
-
-        await db
-          .update(users)
-          .set({ credit: user.credit - 1 })
-          .where(eq(users.id, req.user.id));
-
-        let result;
-        if (process.env.AI_GENERATION_API_ENV === "production") {
-          result = await fal.subscribe("fal-ai/flux-lora", {
-            input: {
-              loras: [
-                {
-                  path: loraUrl,
-                  scale: 1,
-                },
-              ],
-              prompt: prompt,
-              image_size: "square_hd",
-              enable_safety_checker: true,
-            },
-            logs: true,
-            onQueueUpdate: (update) => {
-              if (update.status === "IN_PROGRESS") {
-                update.logs.map((log) => log.message).forEach(console.log);
-              }
-            },
-          });
-        } else {
-          result = {
-            data: {
-              images: [
-                {
-                  url: "https://v3.fal.media/files/mock/generated_image.png",
-                  file_name: "generated_image.png",
-                },
-              ],
-            },
-          };
-        }
-
-        const [modelData] = await db
-          .select({ id: training_models.id })
-          .from(training_models)
-          .where(
-            sql`${training_models.id} = ${modelId} AND ${training_models.user_id} = ${req.user.id}`
-          )
-          .limit(1);
-
-        if (!modelData) {
-          return res.status(400).json({ error: "Invalid model ID or unauthorized access" });
-        }
-
-        for (const image of result.data.images) {
-          try {
-            await db.insert(generated_photos).values({
-              user_id: req.user.id,
-              model_id: parseInt(modelId),
-              prompt: prompt,
-              image_url: image.url,
-            });
-          } catch (error) {
-            console.error("Failed to insert generated photo:", error);
-            throw error;
-          }
-        }
-
-        res.json(result.data);
-      } catch (error) {
-        console.error("Generation error:", error);
-        res.status(500).json({ error: "Image generation failed" });
+      if (!modelId || !loraUrl || !prompt) {
+        return res
+          .status(400)
+          .json({ error: "Model ID, LoRA URL, and prompt are required" });
       }
+
+      const { fal } = await import("@fal-ai/client");
+      fal.config({
+        credentials: process.env.FAL_AI_API_KEY,
+      });
+
+      if (!req.user?.id) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, req.user.id));
+
+      if (!user || user.credit < 1) {
+        return res.status(403).json({ 
+          error: "Insufficient credits", 
+          required: 1,
+          available: user?.credit || 0 
+        });
+      }
+
+      await db
+        .update(users)
+        .set({ credit: user.credit - 1 })
+        .where(eq(users.id, req.user.id));
+
+      let result;
+      if (process.env.AI_GENERATION_API_ENV === "production") {
+        result = await fal.subscribe("fal-ai/flux-lora", {
+          input: {
+            loras: [
+              {
+                path: loraUrl,
+                scale: 1,
+              },
+            ],
+            prompt: prompt,
+            image_size: "square_hd",
+            enable_safety_checker: true,
+          },
+          logs: true,
+          onQueueUpdate: (update) => {
+            if (update.status === "IN_PROGRESS") {
+              update.logs.map((log) => log.message).forEach(console.log);
+            }
+          },
+        });
+      } else {
+        result = {
+          data: {
+            images: [
+              {
+                url: "https://v3.fal.media/files/mock/generated_image.png",
+                file_name: "generated_image.png",
+              },
+            ],
+          },
+        };
+      }
+
+      const [modelData] = await db
+        .select({ id: training_models.id })
+        .from(training_models)
+        .where(
+          sql`${training_models.id} = ${modelId} AND ${training_models.user_id} = ${req.user.id}`
+        )
+        .limit(1);
+
+      if (!modelData) {
+        return res.status(400).json({ error: "Invalid model ID or unauthorized access" });
+      }
+
+      for (const image of result.data.images) {
+        try {
+          await db.insert(generated_photos).values({
+            user_id: req.user.id,
+            model_id: parseInt(modelId),
+            prompt: prompt,
+            image_url: image.url,
+          });
+        } catch (error) {
+          console.error("Failed to insert generated photo:", error);
+          throw error;
+        }
+      }
+
+      res.json(result.data);
+    } catch (error) {
+      console.error("Generation error:", error);
+      res.status(500).json({ error: "Image generation failed" });
     }
-  );
+  }));
 
   // Get user's generated photos endpoint
-  app.get("/api/photos", requireAuth,
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      try {
-        if (!req.user?.id) {
-          return res.status(401).json({ error: "Authentication required" });
-        }
-
-        const photos = await db
-          .select({
-            id: generated_photos.id,
-            prompt: generated_photos.prompt,
-            image_url: generated_photos.image_url,
-            created_at: generated_photos.created_at,
-            model_name: training_models.name,
-          })
-          .from(generated_photos)
-          .leftJoin(
-            training_models,
-            eq(generated_photos.model_id, training_models.id)
-          )
-          .where(eq(generated_photos.user_id, req.user.id))
-          .orderBy(desc(generated_photos.created_at));
-
-        res.json(photos);
-      } catch (error) {
-        console.error("Error fetching photos:", error);
-        res.status(500).json({ error: "Failed to fetch photos" });
+  app.get("/api/photos", requireAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.user?.id) {
+        return res.status(401).json({ error: "Authentication required" });
       }
+
+      const photos = await db
+        .select({
+          id: generated_photos.id,
+          prompt: generated_photos.prompt,
+          image_url: generated_photos.image_url,
+          created_at: generated_photos.created_at,
+          model_name: training_models.name,
+        })
+        .from(generated_photos)
+        .leftJoin(
+          training_models,
+          eq(generated_photos.model_id, training_models.id)
+        )
+        .where(eq(generated_photos.user_id, req.user.id))
+        .orderBy(desc(generated_photos.created_at));
+
+      res.json(photos);
+    } catch (error) {
+      console.error("Error fetching photos:", error);
+      res.status(500).json({ error: "Failed to fetch photos" });
     }
-  );
+  }));
 }
