@@ -2,6 +2,10 @@
 
 An AI-powered photo generation application that allows users to create personalized AI models from their photos. Upload 4 photos to train a custom model, then use text prompts to generate new images in your style. Features Google authentication and a credit-based system powered by Stripe.
 
+## Current Status
+
+The application is functional with all core features implemented. There are some TypeScript type definition issues that need to be addressed in a future update, but they don't affect the runtime functionality of the application.
+
 ## Features
 
 - Personalized AI Model Creation
@@ -233,6 +237,21 @@ npm run start
   {
     "id": number,
     "email": string,
+## Known Issues
+
+- TypeScript type definitions in routes.ts need refinement:
+  - Route handler type mismatches in authentication endpoints
+  - Request type definitions need updating for file upload handlers
+  - Middleware chain type definitions require updates
+- These issues don't affect runtime functionality but should be addressed in future updates
+
+## Development Roadmap
+
+- [ ] Refine TypeScript type definitions in routes.ts
+- [ ] Improve error handling in authentication flow
+- [ ] Add comprehensive API response documentation
+- [ ] Enhance test coverage
+
     "credit": number
   }
   ```
