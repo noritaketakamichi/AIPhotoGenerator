@@ -239,12 +239,28 @@ npm run start
     "email": string,
 ## Known Issues
 
-- TypeScript type definitions in routes.ts need refinement:
-  - Route handler type mismatches in authentication endpoints
-  - Request type definitions need updating for file upload handlers
-  - Middleware chain type definitions require updates
-  - Missing parenthesis and type definition issues in route handlers (documented in TypeScript errors)
-- These issues don't affect runtime functionality but should be addressed in future updates
+### TypeScript Type Definitions
+1. Request Type Handling:
+   - Custom Request type extends Express Request with file upload support
+   - Multer file type definitions require special handling for array vs object types
+   - Current workaround uses type assertion in asyncHandler
+
+2. Authentication Type Issues:
+   - Passport Google Strategy type definitions need custom interfaces
+   - Authentication middleware requires explicit type casting
+   - Session type definitions need manual augmentation
+
+3. Route Handler Type Safety:
+   - Generic type constraints in async route handlers
+   - Request body type inference limitations
+   - Custom type guards needed for authenticated requests
+
+These issues don't affect runtime functionality but should be addressed in future updates. Current workarounds maintain type safety while allowing the application to function correctly.
+
+### Temporary Solutions
+- Type assertions used in specific middleware functions
+- Custom interfaces extend Express types where needed
+- Type guards implemented for authenticated requests
 
 ## Development Roadmap
 
