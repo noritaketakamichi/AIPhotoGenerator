@@ -1,34 +1,36 @@
-# Photo ZIP Manager
+# AI Sokkuri Photo Generator
 
-A modern web application for processing and converting images to ZIP format. Upload exactly 4 photos, and get them processed, compressed, and packaged into a convenient ZIP file with cloud storage integration.
+A modern web application for generating AI-powered photos based on user uploads. The system uses FAL.ai for image processing and training, allows users to create custom models from their photos, and generates new images based on text prompts. The application includes user authentication and a credit-based system powered by Stripe.
 
 ## Features
 
-- Upload exactly 4 photos (max 5MB each)
-- Automatic image processing and optimization
-- ZIP file creation with compressed images
+- Upload exactly 4 photos for model training
+- AI model training with FAL.ai integration
+- Custom model management for each user
+- Text-to-image generation using trained models
+- Credit-based system for training and generation
 - Progress tracking and status indicators
-- Cloud storage integration with FAL.ai
-- PostgreSQL database for upload tracking
 - Modern, responsive UI with drag-and-drop support
 - Secure payment integration with Stripe
-- Credit-based system for photo generation
+- User authentication with Google OAuth
 
 ## Tech Stack
 
 - **Frontend**: React, TypeScript, TailwindCSS, Shadcn UI
 - **Backend**: Express.js
 - **Database**: PostgreSQL with Drizzle ORM
-- **Storage**: FAL.ai
-- **Image Processing**: Sharp
-- **File Compression**: Archiver
+- **AI Integration**: FAL.ai API
+- **Authentication**: Google OAuth
 - **Payment Processing**: Stripe
+- **State Management**: TanStack Query
 
 ## Prerequisites
 
 - Node.js (v18 or higher)
 - PostgreSQL database
 - FAL.ai API key
+- Google OAuth credentials
+- Stripe account and API keys
 
 ## Environment Variables
 
@@ -45,6 +47,10 @@ FAL_AI_API_KEY=your_fal_ai_key
 STRIPE_PUBLIC_KEY=your_stripe_public_key
 STRIPE_SECRET_KEY=your_stripe_secret_key
 STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
+
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
 ```
 
 ## Installation
@@ -52,7 +58,7 @@ STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
 1. Clone the repository:
 ```bash
 git clone https://github.com/noritaketakamichi/AIPhotoGenerator.git
-cd photo-zip-manager
+cd ai-photo-generator
 ```
 
 2. Install dependencies:
@@ -103,17 +109,33 @@ npm run start
 }
 ```
 
-### Payment Integration
-
-#### Stripe Setup
-1. Configure Stripe environment variables:
-```env
-STRIPE_PUBLIC_KEY=your_stripe_public_key
-STRIPE_SECRET_KEY=your_stripe_secret_key
-STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
+### Model Training
+- **Endpoint**: `POST /api/train`
+- **Description**: Initiates model training with uploaded photos
+- **Cost**: 20 credits
+- **Body**:
+```json
+{
+  "falUrl": string
+}
 ```
 
-2. Credit System:
+### Image Generation
+- **Endpoint**: `POST /api/generate`
+- **Description**: Generates new images using trained models
+- **Cost**: 1 credit per image
+- **Body**:
+```json
+{
+  "modelId": number,
+  "loraUrl": string,
+  "prompt": string
+}
+```
+
+### Payment Integration
+
+#### Credit System
 - Training a new model costs 20 credits
 - Generating an image costs 1 credit
 - Credits can be purchased through the Charge page
@@ -131,12 +153,6 @@ STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
     "amount": number
   }
   ```
-  - **Response**: Stripe session ID
-  ```json
-  {
-    "id": "cs_test_..."
-  }
-  ```
 
 - **Webhook Handler**
   - **Endpoint**: `POST /api/stripe-webhook`
@@ -145,7 +161,6 @@ STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
     - `stripe-signature`: Webhook signature for verification
   - **Events Handled**:
     - `checkout.session.completed`: Credits are added to user account
-  - **Response**: 200 OK on success
 
 - **User Credits**
   - **Endpoint**: `GET /api/auth/user`
