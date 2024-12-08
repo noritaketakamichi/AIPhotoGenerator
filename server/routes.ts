@@ -44,11 +44,18 @@ interface CustomRequest extends ExpressRequest {
   rawBody?: Buffer;
   files?: {
     [fieldname: string]: Express.Multer.File[];
-  };
+  } | undefined;
   user?: Express.User;
 }
 
-type Request = CustomRequest;
+// Use Express's built-in Request type with our custom properties
+type Request<
+  P = ParamsDictionary,
+  ResBody = any,
+  ReqBody = any,
+  ReqQuery = ParsedQs,
+  Locals extends Record<string, any> = Record<string, any>
+> = CustomRequest & ExpressRequest<P, ResBody, ReqBody, ReqQuery, Locals>;
 
 // Extend the express session interface
 declare module 'express-session' {
@@ -58,12 +65,22 @@ declare module 'express-session' {
 }
 
 // Extended Request interfaces
-interface AuthenticatedRequest extends Omit<Request, 'user'> {
+interface AuthenticatedRequest<
+  P = ParamsDictionary,
+  ResBody = any,
+  ReqBody = any,
+  ReqQuery = ParsedQs
+> extends Request<P, ResBody, ReqBody, ReqQuery> {
   user: Express.User;
 }
 
 // Type guard to check if request is authenticated
-function isAuthenticatedRequest(req: Request): req is AuthenticatedRequest {
+function isAuthenticatedRequest<
+  P = ParamsDictionary,
+  ResBody = any,
+  ReqBody = any,
+  ReqQuery = ParsedQs
+>(req: Request<P, ResBody, ReqBody, ReqQuery>): req is AuthenticatedRequest<P, ResBody, ReqBody, ReqQuery> {
   return req.user !== undefined;
 }
 
@@ -75,12 +92,17 @@ interface StripeWebhookRequest extends Request {
 type RequestHandler = ExpressRequestHandler;
 
 // Express middleware types
-type AsyncHandler = (
+type AsyncHandler = <
+  P = ParamsDictionary,
+  ResBody = any,
+  ReqBody = any,
+  ReqQuery = ParsedQs
+>(
   fn: (
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ) => Promise<void | Response>,
+    req: Request<P, ResBody, ReqBody, ReqQuery>,
+    res: Response<ResBody>,
+    next: NextFunction
+  ) => Promise<void | Response<ResBody>>
 ) => RequestHandler;
 
 const asyncHandler: AsyncHandler = (fn) => async (req, res, next) => {
@@ -545,7 +567,10 @@ export function registerRoutes(app: express.Application) {
   }));
 
   // Get user's training models endpoint
-  app.get("/api/models", requireAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  app.get("/api/models", requireAuth, asyncHandler(async (req: Request, res: Response) => {
+    if (!isAuthenticatedRequest(req)) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
     try {
       if (!req.user?.id) {
         return res.status(401).json({ error: "Authentication required" });
@@ -571,7 +596,10 @@ export function registerRoutes(app: express.Application) {
   }));
 
   // Generate image endpoint
-  app.post("/api/generate", requireAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  app.post("/api/generate", requireAuth, asyncHandler(async (req: Request, res: Response) => {
+    if (!isAuthenticatedRequest(req)) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
     try {
       const { modelId, loraUrl, prompt } = req.body;
 
@@ -676,7 +704,10 @@ export function registerRoutes(app: express.Application) {
   }));
 
   // Get user's generated photos endpoint
-  app.get("/api/photos", requireAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  app.get("/api/photos", requireAuth, asyncHandler(async (req: Request, res: Response) => {
+    if (!isAuthenticatedRequest(req)) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
     try {
       if (!req.user?.id) {
         return res.status(401).json({ error: "Authentication required" });
