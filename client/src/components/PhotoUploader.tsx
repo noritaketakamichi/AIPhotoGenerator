@@ -9,6 +9,7 @@ import { PhotoPreview } from "./PhotoPreview";
 import { UploadStatus } from "./UploadStatus";
 import { ModelSelector } from "./ModelSelector";
 import { Upload, Loader2 } from "lucide-react";
+import type { Model } from "./ModelSelector";
 
 export function PhotoUploader() {
   const [files, setFiles] = useState<File[]>([]);
@@ -20,7 +21,11 @@ export function PhotoUploader() {
     Array<{ url: string; file_name: string }>
   >([]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isCreateModelOpen, setIsCreateModelOpen] = useState(true);
+  const { data: models = [] } = useQuery<Model[]>({
+    queryKey: ["/api/models"],
+    refetchOnMount: true,
+  });
+  const [isCreateModelOpen, setIsCreateModelOpen] = useState(models.length === 0);
   const { toast } = useToast();
   const { user, refreshUserData } = useAuth();
 
