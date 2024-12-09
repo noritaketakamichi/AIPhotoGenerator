@@ -8,8 +8,13 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
+let dbUrl = process.env.DATABASE_URL;
+if (!dbUrl.includes("sslmode=require")) {
+  dbUrl += dbUrl.includes("?") ? "&sslmode=require" : "?sslmode=require";
+}
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: dbUrl,
   ssl: {
     rejectUnauthorized: false,
   },
