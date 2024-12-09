@@ -22,11 +22,7 @@ const sslConfig =
 // Poolの設定
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ...sslConfig,
-  // エラー時の再接続設定
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  ssl: true,
 });
 
 // エラーハンドリング
