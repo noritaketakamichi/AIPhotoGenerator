@@ -8,14 +8,21 @@ import fs from "fs";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
 import type { Server } from "http";
-import viteConfig from "../vite.config";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// setupVite関数にexportを付与
+/**
+ * 開発環境でのみViteをセットアップする関数
+ * 本番環境では呼ばれず、`vite.config.ts`や`vite`をインポートしないため
+ * 開発用プラグインが本番で必要になることを避けることができる
+ */
 export async function setupVite(app: Express, server: Server) {
   if (process.env.NODE_ENV === "development") {
+    // 開発環境でのみ動的にvite.config.tsとviteを読み込む
+    const { default: viteConfig } = await import(
+      path.join(__dirname, "../vite.config.js")
+    );
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       ...viteConfig,
@@ -30,7 +37,6 @@ export async function setupVite(app: Express, server: Server) {
     app.use(vite.middlewares);
     app.use("*", async (req: Request, res: Response, next: NextFunction) => {
       const url = req.originalUrl;
-
       try {
         const clientTemplate = path.resolve(
           __dirname,
@@ -49,9 +55,13 @@ export async function setupVite(app: Express, server: Server) {
   }
 }
 
+/**
+ * 本番環境で静的ファイルを配信する関数
+ * `dist/public` ディレクトリからビルド済みのフロントエンドを配信し、
+ * Viteや開発用プラグインに依存しない
+ */
 export function serveStatic(app: Express) {
   const distPath = path.resolve(__dirname, "public");
-
   if (!fs.existsSync(distPath)) {
     throw new Error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`,
@@ -59,8 +69,7 @@ export function serveStatic(app: Express) {
   }
 
   app.use(express.static(distPath));
-
-  // fall through to index.html if the file doesn't exist
+  // ファイルが見つからなかった場合は index.html にフォールバック
   app.use("*", (_req: Request, res: Response) => {
     res.sendFile(path.resolve(distPath, "index.html"));
   });
