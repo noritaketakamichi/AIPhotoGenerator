@@ -8,16 +8,26 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-let dbUrl = process.env.DATABASE_URL;
-if (!dbUrl.includes("sslmode=require")) {
-  dbUrl += dbUrl.includes("?") ? "&sslmode=require" : "?sslmode=require";
-}
+// データベースURLの設定
+const dbUrl = process.env.DATABASE_URL;
 
+// Poolの設定
 const pool = new Pool({
   connectionString: dbUrl,
   ssl: {
+    // Heroku Postgres では SSL が必須
     rejectUnauthorized: false,
   },
+  // コネクションエラー時の再試行設定
+  max: 20, // デフォルトの最大プール数
+  idleTimeoutMillis: 30000, // アイドル接続のタイムアウト
+  connectionTimeoutMillis: 2000, // 接続タイムアウト
+});
+
+// エラーハンドリングの追加
+pool.on("error", (err) => {
+  console.error("Unexpected error on idle client", err);
+  process.exit(-1);
 });
 
 export const db = drizzle(pool, { schema });
