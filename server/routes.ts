@@ -305,14 +305,14 @@ export function registerRoutes(app: express.Application) {
 
         await createZipArchive(fileNames, zipPath);
 
-        const [uploadRecord] = await db
-          .insert(uploads)
-          .values({
-            status: "completed",
-            file_count: fileNames.length,
-            zip_path: zipPath,
-          })
-          .returning();
+        // const [uploadRecord] = await db
+        //   .insert(uploads)
+        //   .values({
+        //     status: "completed",
+        //     file_count: fileNames.length,
+        //     zip_path: zipPath,
+        //   })
+        //   .returning();
 
         const zipFile = await readFile(zipPath);
         const file = new Blob([zipFile], { type: "application/zip" });
