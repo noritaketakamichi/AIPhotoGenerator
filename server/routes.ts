@@ -13,7 +13,7 @@ import { ParsedQs } from "qs";
 import multer from "multer";
 import { mkdir, readFile, unlink } from "fs/promises";
 import { db } from "./db";
-import { uploads, training_models, generated_photos, users } from "./db/schema";
+import { training_models, generated_photos, users } from "./db/schema";
 import { eq, desc, sql } from "drizzle-orm";
 import { createZipArchive } from "./utils/archive";
 import { fal } from "@fal-ai/client";
@@ -21,7 +21,6 @@ import passport from "./auth";
 import session from "express-session";
 import Stripe from "stripe";
 import { Strategy } from "passport-google-oauth20";
-//import { Blob } from "buffer";
 
 interface User {
   id: number;
@@ -34,18 +33,15 @@ interface CustomRequest<
   P = ParamsDictionary,
   ResBody = any,
   ReqBody = any,
-  ReqQuery = ParsedQs,
-> extends express.Request<P, ResBody, ReqBody, ReqQuery> {
+  ReqQuery = ParsedQs
+> extends Omit<Request<P, ResBody, ReqBody, ReqQuery>, 'files'> {
   rawBody?: Buffer;
-  files?:
-    | Express.Multer.File[]
-    | { [fieldname: string]: Express.Multer.File[] };
+  files?: { [fieldname: string]: Express.Multer.File[] };
   user?: User;
-  // passportで追加されるメソッド
-  logIn(user: any, done: (err: any) => void): void;
-  logIn(user: any, options: any, done: (err: any) => void): void;
-  logout(done: (err?: any) => void): void;
-  logout(options: Record<string, any>, done: (err?: any) => void): void;
+  logIn(user: User, done: (err: any) => void): void;
+  logIn(user: User, options: any, done: (err: any) => void): void;
+  logout(options: Record<string, any>, done: (err: any) => void): void;
+  logout(done: (err: any) => void): void;
 }
 
 interface AuthenticatedRequest<
@@ -53,8 +49,8 @@ interface AuthenticatedRequest<
   ResBody = any,
   ReqBody = any,
   ReqQuery = ParsedQs,
-> extends CustomRequest<P, ResBody, ReqBody, ReqQuery> {
-  user: User;
+> extends Omit<CustomRequest<P, ResBody, ReqBody, ReqQuery>, 'user'> {
+  user: User;  // Make user required instead of optional
 }
 
 // Type guard for authenticated requests
@@ -64,39 +60,41 @@ function isAuthenticatedRequest(
   return req.user !== undefined;
 }
 
-// Async handler type: promise returns void only, not Response, to avoid type issues
-type AsyncHandler = (
+// Async handler type
+type AsyncHandler = <P = ParamsDictionary, ResBody = any, ReqBody = any, ReqQuery = ParsedQs>(
   fn: (
-    req: CustomRequest<ParamsDictionary, any, any, ParsedQs>,
-    res: Response,
-    next: NextFunction,
-  ) => Promise<void>,
-) => RequestHandler<ParamsDictionary, any, any, ParsedQs>;
+    req: CustomRequest<P, ResBody, ReqBody, ReqQuery>,
+    res: Response<ResBody>,
+    next: NextFunction
+  ) => Promise<void>
+) => RequestHandler<P, ResBody, ReqBody, ReqQuery>;
 
-const asyncHandler: AsyncHandler = (fn) => (req, res, next) => {
-  Promise.resolve(fn(req as CustomRequest, res, next)).catch(next);
+const asyncHandler: AsyncHandler = (fn) => async (req, res, next) => {
+  try {
+    // Type assertion to handle multer file upload types
+    const customReq = req as unknown as CustomRequest;
+    await fn(customReq, res, next);
+  } catch (error) {
+    next(error);
+  }
 };
 
 // Auth middleware
 const requireAuth: RequestHandler = (req, res, next) => {
   const customReq = req as CustomRequest;
   if (!customReq.user) {
-    res.status(401).json({ error: "Authentication required" });
-    return;
+    return res.status(401).json({ error: "Authentication required" });
   }
   next();
 };
 
-interface GoogleAuthOptions {
+import type { AuthenticateOptions } from 'passport';
+
+interface GoogleAuthOptions extends AuthenticateOptions {
   scope?: string[];
   callbackURL?: string;
-  successRedirect?: string;
-  failureRedirect?: string;
+  state?: string | undefined;
 }
-
-const authenticateGoogle = (options: GoogleAuthOptions) => {
-  return passport.authenticate("google", options as any);
-};
 
 // Initialize environment variables
 const __filename = fileURLToPath(import.meta.url);
@@ -117,10 +115,7 @@ const storage = multer.diskStorage({
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(
-      null,
-      file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname),
-    );
+    cb(null, file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname));
   },
 });
 
@@ -156,21 +151,26 @@ export function registerRoutes(app: express.Application) {
   app.use(passport.session());
 
   app.get("/auth/google", (req: Request, res: Response, next: NextFunction) => {
-    const protocol = (req.headers["x-forwarded-proto"] ||
-      req.protocol) as string;
+    const protocol = (req.headers["x-forwarded-proto"] || req.protocol) as string;
     const host = (req.headers["x-forwarded-host"] || req.get("host")) as string;
     const callbackUrl = `${protocol}://${host}/auth/google/callback`;
-
-    authenticateGoogle({
+    
+    passport.authenticate("google", {
       scope: ["profile", "email"],
       callbackURL: callbackUrl,
-    })(req, res, next);
+    } as AuthenticateOptions)(req, res, next);
   });
 
   app.get(
     "/auth/google/callback",
     (req: Request, res: Response, next: NextFunction) => {
-      authenticateGoogle({
+      const protocol = (req.headers["x-forwarded-proto"] || req.protocol) as string;
+      const host = (req.headers["x-forwarded-host"] || req.get("host")) as string;
+      const callbackUrl = `${protocol}://${host}/auth/google/callback`;
+      
+      passport.authenticate("google", {
+        scope: ["profile", "email"],
+        callbackURL: callbackUrl,
         failureRedirect: "/auth?error=authentication_failed",
         successRedirect: "/",
       })(req, res, next);
@@ -273,7 +273,6 @@ export function registerRoutes(app: express.Application) {
       }
 
       const event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
-      // Handle event as needed
       res.json({ received: true });
     }),
   );
@@ -305,15 +304,6 @@ export function registerRoutes(app: express.Application) {
 
         await createZipArchive(fileNames, zipPath);
 
-        const [uploadRecord] = await db
-          .insert(uploads)
-          .values({
-            status: "completed",
-            file_count: fileNames.length,
-            zip_path: zipPath,
-          })
-          .returning();
-
         const zipFile = await readFile(zipPath);
         const file = new Blob([zipFile], { type: "application/zip" });
 
@@ -338,7 +328,6 @@ export function registerRoutes(app: express.Application) {
 
         res.json({
           success: true,
-          uploadId: uploadRecord.id,
           falUrl,
         });
       } catch (error) {
