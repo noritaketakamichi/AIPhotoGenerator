@@ -1,5 +1,5 @@
-import { drizzle } from "drizzle-orm/neon-serverless";
-import ws from "ws";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
 import * as schema from "@db/schema";
 
 if (!process.env.DATABASE_URL) {
@@ -8,15 +8,11 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-let dbUrl = process.env.DATABASE_URL;
-
-// sslmode=require がURL内に含まれていない場合、付与する
-if (!dbUrl.includes("sslmode=require")) {
-  dbUrl += dbUrl.includes("?") ? "&sslmode=require" : "?sslmode=require";
-}
-
-export const db = drizzle({
-  connection: dbUrl,
-  schema,
-  ws: ws,
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false,
+  },
 });
+
+export const db = drizzle(pool, { schema });
