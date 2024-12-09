@@ -2,14 +2,16 @@ import express, { type Express } from "express";
 import fs from "fs";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
-import { createServer as createViteServer } from "vite";
+//import { createServer as createViteServer } from "vite";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 import { type Server } from "http";
 import viteConfig from "../vite.config";
 
-export async function setupVite(app: Express, server: Server) {
-  const vite = await createViteServer({
+async function setupVite(app, server) {
+  if (process.env.NODE_ENV === "development") {
+    const { createServer: createViteServer } = await import("vite");
+    const vite = await createViteServer({
     ...viteConfig,
     configFile: false,
     server: {
@@ -28,7 +30,7 @@ export async function setupVite(app: Express, server: Server) {
         __dirname,
         "..",
         "client",
-        "index.html"
+        "index.html",
       );
 
       // always reload the index.html file from disk incase it changes
@@ -47,7 +49,7 @@ export function serveStatic(app: Express) {
 
   if (!fs.existsSync(distPath)) {
     throw new Error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`
+      `Could not find the build directory: ${distPath}, make sure to build the client first`,
     );
   }
 
