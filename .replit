@@ -34,6 +34,14 @@ args = "Development Server"
 task = "workflow.run"
 args = "GitHub Setup"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Backend Server"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Frontend Server"
+
 [[workflows.workflow]]
 name = "Development Server"
 author = "agent"
@@ -62,3 +70,33 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "git remote -v"
+
+[[workflows.workflow]]
+name = "Backend Server"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd server && npm run dev"
+waitForPort = 5000
+
+[[workflows.workflow]]
+name = "Frontend Server"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+waitForPort = 3000
