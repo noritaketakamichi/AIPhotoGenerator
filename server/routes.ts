@@ -3,7 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
 import express, {
-  Request as ExpressRequest,
+  Request,
   Response,
   NextFunction,
   RequestHandler,
@@ -21,9 +21,8 @@ import passport from "./auth";
 import session from "express-session";
 import Stripe from "stripe";
 import { Strategy } from "passport-google-oauth20";
-import { Blob } from "buffer";
+//import { Blob } from "buffer";
 
-// Base interfaces
 interface User {
   id: number;
   email: string;
@@ -31,54 +30,49 @@ interface User {
   created_at: Date;
 }
 
-// Custom request type with proper Multer and Session typing
-type CustomRequest<
+interface CustomRequest<
   P = ParamsDictionary,
   ResBody = any,
   ReqBody = any,
   ReqQuery = ParsedQs,
-> = Omit<ExpressRequest<P, ResBody, ReqBody, ReqQuery>, 'files'> & {
+> extends express.Request<P, ResBody, ReqBody, ReqQuery> {
   rawBody?: Buffer;
-  files?: { [fieldname: string]: Express.Multer.File[] };
+  files?:
+    | Express.Multer.File[]
+    | { [fieldname: string]: Express.Multer.File[] };
   user?: User;
-  isAuthenticated(): this is AuthenticatedRequest<P, ResBody, ReqBody, ReqQuery>;
+  // passportで追加されるメソッド
   logIn(user: any, done: (err: any) => void): void;
   logIn(user: any, options: any, done: (err: any) => void): void;
-  logout(options: Record<string, any>, done: (err: any) => void): void;
-  logout(done: (err: any) => void): void;
-};
+  logout(done: (err?: any) => void): void;
+  logout(options: Record<string, any>, done: (err?: any) => void): void;
+}
 
-type AuthenticatedRequest<
+interface AuthenticatedRequest<
   P = ParamsDictionary,
   ResBody = any,
   ReqBody = any,
   ReqQuery = ParsedQs,
-> = CustomRequest<P, ResBody, ReqBody, ReqQuery> & {
+> extends CustomRequest<P, ResBody, ReqBody, ReqQuery> {
   user: User;
-};
+}
 
 // Type guard for authenticated requests
 function isAuthenticatedRequest(
-  req: CustomRequest
+  req: CustomRequest,
 ): req is AuthenticatedRequest {
   return req.user !== undefined;
 }
 
-// Type for async route handlers
-type AsyncHandler = <
-  P = ParamsDictionary,
-  ResBody = any,
-  ReqBody = any,
-  ReqQuery = ParsedQs
->(
+// Async handler type: promise returns void only, not Response, to avoid type issues
+type AsyncHandler = (
   fn: (
-    req: CustomRequest<P, ResBody, ReqBody, ReqQuery>,
-    res: Response<ResBody>,
-    next: NextFunction
-  ) => Promise<void | Response<ResBody>>
-) => RequestHandler<P, ResBody, ReqBody, ReqQuery>;
+    req: CustomRequest<ParamsDictionary, any, any, ParsedQs>,
+    res: Response,
+    next: NextFunction,
+  ) => Promise<void>,
+) => RequestHandler<ParamsDictionary, any, any, ParsedQs>;
 
-// AsyncHandler implementation
 const asyncHandler: AsyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req as CustomRequest, res, next)).catch(next);
 };
@@ -93,7 +87,6 @@ const requireAuth: RequestHandler = (req, res, next) => {
   next();
 };
 
-// Google authentication options type
 interface GoogleAuthOptions {
   scope?: string[];
   callbackURL?: string;
@@ -101,7 +94,6 @@ interface GoogleAuthOptions {
   failureRedirect?: string;
 }
 
-// Helper function for Google authentication
 const authenticateGoogle = (options: GoogleAuthOptions) => {
   return passport.authenticate("google", options as any);
 };
@@ -160,13 +152,10 @@ export function registerRoutes(app: express.Application) {
     }),
   );
 
-  // Initialize Passport
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // Auth routes
   app.get("/auth/google", (req: Request, res: Response, next: NextFunction) => {
-    const customReq = req as CustomRequest;
     const protocol = (req.headers["x-forwarded-proto"] ||
       req.protocol) as string;
     const host = (req.headers["x-forwarded-host"] || req.get("host")) as string;
@@ -181,7 +170,6 @@ export function registerRoutes(app: express.Application) {
   app.get(
     "/auth/google/callback",
     (req: Request, res: Response, next: NextFunction) => {
-      const customReq = req as CustomRequest;
       authenticateGoogle({
         failureRedirect: "/auth?error=authentication_failed",
         successRedirect: "/",
@@ -206,15 +194,12 @@ export function registerRoutes(app: express.Application) {
     asyncHandler(async (req, res) => {
       const customReq = req as CustomRequest;
       customReq.logout((err) => {
-        if (err) {
-          throw err;
-        }
+        if (err) throw err;
         res.json({ success: true });
       });
     }),
   );
 
-  // Stripe payment endpoint
   app.post(
     "/api/create-checkout-session",
     requireAuth,
@@ -265,7 +250,6 @@ export function registerRoutes(app: express.Application) {
     }),
   );
 
-  // Stripe webhook endpoint
   app.post(
     "/api/stripe-webhook",
     asyncHandler(async (req, res) => {
@@ -289,13 +273,11 @@ export function registerRoutes(app: express.Application) {
       }
 
       const event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
-
-      // TODO: handle event.type
+      // Handle event as needed
       res.json({ received: true });
     }),
   );
 
-  // File upload endpoint
   app.post(
     "/api/upload",
     upload.fields([
@@ -308,7 +290,7 @@ export function registerRoutes(app: express.Application) {
       const customReq = req as CustomRequest;
       try {
         const files = customReq.files as {
-          [fieldname: string]: express.Multer.File[];
+          [fieldname: string]: Express.Multer.File[];
         };
         if (!files || Object.keys(files).length !== 4) {
           res.status(400).json({ error: "Exactly 4 photos are required" });
@@ -340,11 +322,7 @@ export function registerRoutes(app: express.Application) {
           fal.config({ credentials: process.env.FAL_AI_API_KEY });
           falUrl = await fal.storage.upload(file);
         } else {
-          falUrl = `https://v3.fal.media/files/mock/${Buffer.from(
-            Math.random().toString(),
-          )
-            .toString("hex")
-            .slice(0, 8)}_${Date.now()}.zip`;
+          falUrl = `https://v3.fal.media/files/mock/${Buffer.from(Math.random().toString()).toString("hex").slice(0, 8)}_${Date.now()}.zip`;
         }
 
         await Promise.all([
@@ -370,7 +348,6 @@ export function registerRoutes(app: express.Application) {
     }),
   );
 
-  // Training endpoint
   app.post(
     "/api/train",
     requireAuth,
@@ -382,7 +359,6 @@ export function registerRoutes(app: express.Application) {
       }
 
       const { falUrl } = customReq.body;
-
       if (!falUrl) {
         res.status(400).json({ error: "FAL URL is required" });
         return;
@@ -392,7 +368,6 @@ export function registerRoutes(app: express.Application) {
         .select()
         .from(users)
         .where(eq(users.id, customReq.user.id));
-
       if (!user || user.credit < 20) {
         res.status(403).json({
           error: "Insufficient credits",
@@ -467,7 +442,6 @@ export function registerRoutes(app: express.Application) {
     }),
   );
 
-  // Get user's training models endpoint
   app.get(
     "/api/models",
     requireAuth,
@@ -477,6 +451,7 @@ export function registerRoutes(app: express.Application) {
         res.status(401).json({ error: "Authentication required" });
         return;
       }
+
       const models = await db
         .select({
           id: training_models.id,
@@ -493,7 +468,6 @@ export function registerRoutes(app: express.Application) {
     }),
   );
 
-  // Generate image endpoint
   app.post(
     "/api/generate",
     requireAuth,
@@ -503,8 +477,8 @@ export function registerRoutes(app: express.Application) {
         res.status(401).json({ error: "Authentication required" });
         return;
       }
-      const { modelId, loraUrl, prompt } = customReq.body;
 
+      const { modelId, loraUrl, prompt } = customReq.body;
       if (!modelId || !loraUrl || !prompt) {
         res
           .status(400)
@@ -516,7 +490,6 @@ export function registerRoutes(app: express.Application) {
         .select()
         .from(users)
         .where(eq(users.id, customReq.user.id));
-
       if (!user || user.credit < 1) {
         res.status(403).json({
           error: "Insufficient credits",
@@ -538,12 +511,7 @@ export function registerRoutes(app: express.Application) {
 
         result = await fal.subscribe("fal-ai/flux-lora", {
           input: {
-            loras: [
-              {
-                path: loraUrl,
-                scale: 1,
-              },
-            ],
+            loras: [{ path: loraUrl, scale: 1 }],
             prompt: prompt,
             image_size: "square_hd",
             enable_safety_checker: true,
@@ -596,7 +564,6 @@ export function registerRoutes(app: express.Application) {
     }),
   );
 
-  // Get user's generated photos endpoint
   app.get(
     "/api/photos",
     requireAuth,
