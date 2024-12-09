@@ -13,7 +13,7 @@ import { ParsedQs } from "qs";
 import multer from "multer";
 import { mkdir, readFile, unlink } from "fs/promises";
 import { db } from "./db";
-import { uploads, training_models, generated_photos, users } from "./db/schema";
+import { training_models, generated_photos, users } from "./db/schema";
 import { eq, desc, sql } from "drizzle-orm";
 import { createZipArchive } from "./utils/archive";
 import { fal } from "@fal-ai/client";
