@@ -8,18 +8,25 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// DATABASE_URLにSSLモードを追加
-let dbUrl = process.env.DATABASE_URL;
-if (!dbUrl.includes("sslmode=require")) {
-  dbUrl += (dbUrl.includes("?") ? "&" : "?") + "sslmode=require";
-}
+// 本番環境（Heroku）でのSSL設定
+const sslConfig =
+  process.env.NODE_ENV === "production"
+    ? {
+        ssl: {
+          rejectUnauthorized: false,
+          require: true,
+        },
+      }
+    : {};
 
-// Heroku Postgres用の設定
+// Poolの設定
 const pool = new Pool({
-  connectionString: dbUrl,
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  connectionString: process.env.DATABASE_URL,
+  ...sslConfig,
+  // エラー時の再接続設定
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
 });
 
 // エラーハンドリング
