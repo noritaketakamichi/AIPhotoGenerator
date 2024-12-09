@@ -8,14 +8,17 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
+// DATABASE_URLにSSLモードを追加
+let dbUrl = process.env.DATABASE_URL;
+if (!dbUrl.includes("sslmode=require")) {
+  dbUrl += (dbUrl.includes("?") ? "&" : "?") + "sslmode=require";
+}
+
 // Heroku Postgres用の設定
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: dbUrl,
   ssl: {
     rejectUnauthorized: false,
-    // Heroku Postgresの場合、以下の設定も追加
-    sslmode: "require",
-    ssl: true,
   },
 });
 
@@ -23,16 +26,6 @@ const pool = new Pool({
 pool.on("error", (err) => {
   console.error("Unexpected error on idle client", err);
   process.exit(-1);
-});
-
-// 接続テスト
-pool.connect((err, client, release) => {
-  if (err) {
-    console.error("Error acquiring client", err.stack);
-    return;
-  }
-  console.log("Database connection successful");
-  release();
 });
 
 export const db = drizzle(pool, { schema });
