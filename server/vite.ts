@@ -12,37 +12,38 @@ async function setupVite(app, server) {
   if (process.env.NODE_ENV === "development") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
-    ...viteConfig,
-    configFile: false,
-    server: {
-      middlewareMode: true,
-      hmr: { server },
-    },
-    appType: "custom",
-  });
+      ...viteConfig,
+      configFile: false,
+      server: {
+        middlewareMode: true,
+        hmr: { server },
+      },
+      appType: "custom",
+    }); // ← ここで閉じる (オブジェクトリテラルの終わり)
 
-  app.use(vite.middlewares);
-  app.use("*", async (req, res, next) => {
-    const url = req.originalUrl;
+    app.use(vite.middlewares);
+    app.use("*", async (req, res, next) => {
+      const url = req.originalUrl;
 
-    try {
-      const clientTemplate = path.resolve(
-        __dirname,
-        "..",
-        "client",
-        "index.html",
-      );
+      try {
+        const clientTemplate = path.resolve(
+          __dirname,
+          "..",
+          "client",
+          "index.html",
+        );
 
-      // always reload the index.html file from disk incase it changes
-      const template = await fs.promises.readFile(clientTemplate, "utf-8");
-      const page = await vite.transformIndexHtml(url, template);
-      res.status(200).set({ "Content-Type": "text/html" }).end(page);
-    } catch (e) {
-      vite.ssrFixStacktrace(e as Error);
-      next(e);
-    }
-  });
-}
+        // always reload the index.html file from disk incase it changes
+        const template = await fs.promises.readFile(clientTemplate, "utf-8");
+        const page = await vite.transformIndexHtml(url, template);
+        res.status(200).set({ "Content-Type": "text/html" }).end(page);
+      } catch (e) {
+        vite.ssrFixStacktrace(e as Error);
+        next(e);
+      }
+    });
+  } // ← ifブロックの終わり
+} // ← setupVite関数の終わり
 
 export function serveStatic(app: Express) {
   const distPath = path.resolve(__dirname, "public");
