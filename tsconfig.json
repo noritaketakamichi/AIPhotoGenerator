@@ -18,6 +18,7 @@
     "paths": {
       "@/*": ["./client/src/*"],
       "@db/*": ["./db/*"]
-    }
+    },
+    "typeRoots": ["./node_modules/@types", "./server/types"]
   }
 }
