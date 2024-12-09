@@ -1,18 +1,22 @@
 import dotenv from "dotenv";
 import path from "path";
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+import { fileURLToPath } from "url";
+import { dirname } from "path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-dotenv.config({ path: path.join(__dirname, '../.env') });
+dotenv.config({ path: path.join(__dirname, "../.env") });
 
-import express, { type Request, Response, NextFunction, ErrorRequestHandler } from "express";
+import express, {
+  type Request,
+  Response,
+  NextFunction,
+  ErrorRequestHandler,
+} from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic } from "./vite";
 import { createServer } from "http";
-
 
 function log(message: string) {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -28,17 +32,25 @@ function log(message: string) {
 const app = express();
 
 // Trust proxy settings for secure HTTPS handling
-app.set('trust proxy', 1);
+app.set("trust proxy", 1);
 
 // Configure body parsing middleware
-const rawBodySaver = (req: Request, res: Response, buf: Buffer, encoding: string) => {
+const rawBodySaver = (
+  req: Request,
+  res: Response,
+  buf: Buffer,
+  encoding: string,
+) => {
   if (buf && buf.length) {
     (req as any).rawBody = buf;
   }
 };
 
 // Parse raw body for Stripe webhook
-app.use('/api/stripe-webhook', express.raw({ type: 'application/json', verify: rawBodySaver }));
+app.use(
+  "/api/stripe-webhook",
+  express.raw({ type: "application/json", verify: rawBodySaver }),
+);
 
 // Parse JSON for all other routes
 app.use(express.json());
@@ -99,11 +111,13 @@ app.use((req, res, next) => {
 
   // ALWAYS serve the app on port 5000
   // this serves both the API and the client
-  const PORT = 5000;
-  server.listen(PORT, "0.0.0.0", () => {
-    log(`Server running at http://0.0.0.0:${PORT}`);
-  }).on('error', (error) => {
-    console.error('Server failed to start:', error);
-    process.exit(1);
-  });
+  const PORT = process.env.PORT || 5000;
+  server
+    .listen(PORT, "0.0.0.0", () => {
+      log(`Server running at http://0.0.0.0:${PORT}`);
+    })
+    .on("error", (error) => {
+      console.error("Server failed to start:", error);
+      process.exit(1);
+    });
 })();
