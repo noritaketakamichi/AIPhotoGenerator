@@ -8,8 +8,15 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
+let dbUrl = process.env.DATABASE_URL;
+
+// sslmode=require がURL内に含まれていない場合、付与する
+if (!dbUrl.includes("sslmode=require")) {
+  dbUrl += dbUrl.includes("?") ? "&sslmode=require" : "?sslmode=require";
+}
+
 export const db = drizzle({
-  connection: process.env.DATABASE_URL,
+  connection: dbUrl,
   schema,
   ws: ws,
 });
