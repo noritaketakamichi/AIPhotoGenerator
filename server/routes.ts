@@ -23,6 +23,8 @@ import Stripe from "stripe";
 import { Strategy } from "passport-google-oauth20";
 //import { Blob } from "buffer";
 
+import cors from "cors";
+
 interface User {
   id: number;
   email: string;
@@ -145,37 +147,61 @@ export function registerRoutes(app: express.Application) {
       saveUninitialized: false,
       proxy: true,
       cookie: {
-        secure: true,
-        sameSite: "none",
+        secure: false,
+        sameSite: "lax",
         maxAge: 24 * 60 * 60 * 1000,
       },
-    }),
+    })
   );
+
+  app.use(cors({
+    origin: "http://localhost:5174",  // フロントエンドのURL
+    credentials: true                 // Cookie送受信を許可
+  }));
 
   app.use(passport.initialize());
   app.use(passport.session());
+
+  app.get("/", (req: Request, res: Response) => {
+    res.sendFile(path.join(process.cwd(), "dist", "public", "index.html"));
+  });
 
   app.get("/auth/google", (req: Request, res: Response, next: NextFunction) => {
     const protocol = (req.headers["x-forwarded-proto"] ||
       req.protocol) as string;
     const host = (req.headers["x-forwarded-host"] || req.get("host")) as string;
-    const callbackUrl = `${protocol}://${host}/auth/google/callback`;
+    const callbackUrl = "http://localhost:3000/auth/google/callback";
 
     authenticateGoogle({
       scope: ["profile", "email"],
       callbackURL: callbackUrl,
+      successRedirect: "http://localhost:5174/",
+      failureRedirect: "http://localhost:5174/auth?error=authentication_failed",
     })(req, res, next);
   });
 
-  app.get(
-    "/auth/google/callback",
-    (req: Request, res: Response, next: NextFunction) => {
-      authenticateGoogle({
-        failureRedirect: "/auth?error=authentication_failed",
-        successRedirect: "/",
-      })(req, res, next);
-    },
-  );
+  app.get("/auth/google/callback", (req: Request, res: Response, next: NextFunction) => {
+    passport.authenticate("google", (err, user, info) => {
+      if (err) {
+        console.error("Authentication Error:", err);
+        return res.status(500).json({ error: "Server error occurred" });
+      }
+      if (!user) {
+        console.error("No user returned:", info);
+        return res.status(401).json({ error: "Authentication failed" });
+      }
+  
+      req.logIn(user, (err) => {
+        if (err) {
+          console.error("Login Error:", err);
+          return next(err);
+        }
+        console.log("User logged in:", user);
+        // 認証後にフロントエンドへリダイレクト
+        res.redirect("http://localhost:5174/");
+      });
+    })(req, res, next);
+  });
 
   app.get(
     "/api/auth/user",
@@ -288,6 +314,7 @@ export function registerRoutes(app: express.Application) {
     ]),
     asyncHandler(async (req, res) => {
       const customReq = req as CustomRequest;
+      console.log("/api/upload is called")
       try {
         const files = customReq.files as {
           [fieldname: string]: Express.Multer.File[];
@@ -303,27 +330,28 @@ export function registerRoutes(app: express.Application) {
         const zipFileName = `archive-${Date.now()}.zip`;
         const zipPath = path.join(process.cwd(), "uploads", zipFileName);
 
-        await createZipArchive(fileNames, zipPath);
+        //checking
+        console.log(zipPath)
 
-        // const [uploadRecord] = await db
-        //   .insert(uploads)
-        //   .values({
-        //     status: "completed",
-        //     file_count: fileNames.length,
-        //     zip_path: zipPath,
-        //   })
-        //   .returning();
+        await createZipArchive(fileNames, zipPath);
 
         const zipFile = await readFile(zipPath);
         const file = new Blob([zipFile], { type: "application/zip" });
 
         let falUrl: string;
+
+        console.log(file)
+
         if (process.env.AI_TRAINING_API_ENV === "production") {
           fal.config({ credentials: process.env.FAL_AI_API_KEY });
           falUrl = await fal.storage.upload(file);
+          console.log("training in prod")
         } else {
           falUrl = `https://v3.fal.media/files/mock/${Buffer.from(Math.random().toString()).toString("hex").slice(0, 8)}_${Date.now()}.zip`;
+          console.log("training in mock")
         }
+
+        console.log("falUrl:",falUrl)
 
         await Promise.all([
           ...fileNames.map((fileName) =>
@@ -336,9 +364,10 @@ export function registerRoutes(app: express.Application) {
           ),
         ]);
 
+        console.log("file deleted")
+
         res.json({
           success: true,
-          uploadId: uploadRecord.id,
           falUrl,
         });
       } catch (error) {
@@ -352,6 +381,7 @@ export function registerRoutes(app: express.Application) {
     "/api/train",
     requireAuth,
     asyncHandler(async (req, res) => {
+      console.log("/api/train is called")
       const customReq = req as CustomRequest;
       if (!isAuthenticatedRequest(customReq)) {
         res.status(401).json({ error: "Authentication required" });
@@ -359,6 +389,7 @@ export function registerRoutes(app: express.Application) {
       }
 
       const { falUrl } = customReq.body;
+      console.log("falUrl:",falUrl)
       if (!falUrl) {
         res.status(400).json({ error: "FAL URL is required" });
         return;
@@ -381,6 +412,8 @@ export function registerRoutes(app: express.Application) {
         .update(users)
         .set({ credit: user.credit - 20 })
         .where(eq(users.id, customReq.user.id));
+
+      console.log("done deduct credit")
 
       const [lastModel] = await db
         .select({ name: training_models.name })
@@ -430,6 +463,9 @@ export function registerRoutes(app: express.Application) {
           },
         };
       }
+
+      console.log("done training")
+      console.log("result:",result)
 
       await db.insert(training_models).values({
         user_id: customReq.user.id,

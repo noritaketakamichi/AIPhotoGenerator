@@ -30,7 +30,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUser = async () => {
     try {
-      const response = await fetch("/api/auth/user");
+      const response = await fetch("http://localhost:3000/api/auth/user", {
+        credentials: "include",
+      });
       if (response.ok) {
         const userData = await response.json();
         setUser(userData);
@@ -56,20 +58,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = () => {
     console.log('Initiating Google login...');
-    // Use the current origin to build the auth URL
-    const loginUrl = `/auth/google`;
+    const loginUrl = "http://localhost:3000/auth/google";
     console.log('Redirecting to:', loginUrl);
     window.location.href = loginUrl;
   };
 
   const logout = async () => {
     try {
-      const response = await fetch("/api/auth/logout", {
+      const response = await fetch("http://localhost:3000/api/auth/logout", {
         method: "POST",
+        credentials: "include", // ← これを追加
       });
       if (response.ok) {
         setUser(null);
         setLocation("/");
+      } else {
+        setError("Failed to logout");
       }
     } catch (err) {
       setError("Failed to logout");

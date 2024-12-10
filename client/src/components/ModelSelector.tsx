@@ -21,7 +21,7 @@ interface ModelSelectorProps {
 
 export function ModelSelector({ onModelSelect }: ModelSelectorProps) {
   const { data: models = [], isLoading, isError, refetch } = useQuery<Model[]>({
-    queryKey: ["/api/models"],
+    queryKey: ["http://localhost:3000/api/models"],
     refetchOnMount: true,
   });
 
@@ -31,7 +31,7 @@ export function ModelSelector({ onModelSelect }: ModelSelectorProps) {
     }
 
     if (isError) {
-      return <div className="text-sm text-destructive">Error loading models</div>;
+      return <div className="text-sm text-destructive">No models to use</div>;
     }
 
     if (!models.length) {

@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
 // Initialize Stripe with public key
-const STRIPE_PUBLIC_KEY = import.meta.env.VITE_STRIPE_PUBLIC_KEY;
+const STRIPE_PUBLIC_KEY = import.meta.env.STRIPE_PUBLIC_KEY;
+console.log(STRIPE_PUBLIC_KEY)
 if (!STRIPE_PUBLIC_KEY) {
   console.error('Stripe public key is not set in environment variables');
 }
@@ -75,8 +76,9 @@ export default function ChargePage() {
               size="lg"
               onClick={async () => {
                 try {
-                  const response = await fetch('/api/create-checkout-session', {
+                  const response = await fetch('http://localhost:3000/api/create-checkout-session', {
                     method: 'POST',
+                    credentials: "include",
                     headers: {
                       'Content-Type': 'application/json',
                     },

@@ -1,4 +1,4 @@
-import dotenv from "dotenv";
+import "./env-setup";
 import path from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
@@ -6,7 +6,7 @@ import { dirname } from "path";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-dotenv.config({ path: path.join(__dirname, "../.env") });
+
 
 import express, {
   type Request,
@@ -109,9 +109,9 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on port 5000
+  // ALWAYS serve the app on port 3000
   // this serves both the API and the client
-  const PORT = Number(process.env.PORT) || 5000;
+  const PORT = Number(process.env.PORT) || 3000;
   server
     .listen(PORT, "0.0.0.0", () => {
       log(`Server running at http://0.0.0.0:${PORT}`);
