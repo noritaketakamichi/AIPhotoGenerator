@@ -70,8 +70,10 @@ export function PhotoUploader() {
 
   // New function to call the training endpoint
   const startTraining = async (url: string) => {
-    const response = await fetch("/api/train", {
+    console.log("startTraining")
+    const response = await fetch("http://localhost:3000/api/train", {
       method: "POST",
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
       },
@@ -93,10 +95,12 @@ export function PhotoUploader() {
       });
 
       console.log(formData);
-      const response = await fetch("/api/upload", {
+      const response = await fetch("http://localhost:3000/api/upload", {
         method: "POST",
         body: formData,
       });
+
+      console.log("response:",response)
 
       if (!response.ok) {
         throw new Error("Upload failed");
@@ -316,8 +320,9 @@ export function PhotoUploader() {
                     }
 
                     setIsGenerating(true);
-                    const response = await fetch("/api/generate", {
+                    const response = await fetch("http://localhost:3000/api/generate", {
                       method: "POST",
+                      credentials: "include",
                       headers: {
                         "Content-Type": "application/json",
                       },

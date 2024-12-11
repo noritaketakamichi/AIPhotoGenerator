@@ -15,9 +15,19 @@ interface GeneratedPhoto {
 
 export default function GalleryPage() {
   const { user } = useAuth();
+  console.log("gallery page")
   const { data: photos = [], isLoading } = useQuery<GeneratedPhoto[]>({
     queryKey: ["/api/photos"],
     enabled: !!user,
+    queryFn: async () => {
+      const res = await fetch("http://localhost:3000/api/photos", {
+        credentials: "include", // 認証が必要ならCookieを送る
+      });
+      if (!res.ok) {
+        throw new Error("Failed to fetch photos");
+      }
+      return res.json();
+    },
   });
 
   const handleDownload = useCallback(async (photo: GeneratedPhoto) => {

@@ -8,6 +8,8 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+
 export default defineConfig({
   plugins: [
     react(),
@@ -26,4 +28,10 @@ export default defineConfig({
     outDir: path.resolve(__dirname, "dist/public"),
     emptyOutDir: true,
   },
+  server: {
+    proxy: {
+      '/auth': 'http://localhost:3000'
+    }
+  }
 });
+

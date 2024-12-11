@@ -23,6 +23,8 @@ import Stripe from "stripe";
 import { Strategy } from "passport-google-oauth20";
 //import { Blob } from "buffer";
 
+import cors from "cors";
+
 interface User {
   id: number;
   email: string;
@@ -80,7 +82,13 @@ const asyncHandler: AsyncHandler = (fn) => (req, res, next) => {
 // Auth middleware
 const requireAuth: RequestHandler = (req, res, next) => {
   const customReq = req as CustomRequest;
+  console.log("Checking auth:", {
+    user: customReq.user,
+    session: (req as any).session,
+    cookies: req.headers.cookie,
+  });
   if (!customReq.user) {
+    console.log("No user found in req.user");
     res.status(401).json({ error: "Authentication required" });
     return;
   }
@@ -145,36 +153,46 @@ export function registerRoutes(app: express.Application) {
       saveUninitialized: false,
       proxy: true,
       cookie: {
-        secure: true,
-        sameSite: "none",
+        secure: false,
+        sameSite: "lax",
         maxAge: 24 * 60 * 60 * 1000,
       },
-    }),
+    })
   );
+
+  app.use(cors({
+    origin: "http://localhost:5174",  // フロントエンドのURL
+    credentials: true                 // Cookie送受信を許可
+  }));
 
   app.use(passport.initialize());
   app.use(passport.session());
+
+  app.get("/", (req: Request, res: Response) => {
+    res.sendFile(path.join(process.cwd(), "dist", "public", "index.html"));
+  });
 
   app.get("/auth/google", (req: Request, res: Response, next: NextFunction) => {
     const protocol = (req.headers["x-forwarded-proto"] ||
       req.protocol) as string;
     const host = (req.headers["x-forwarded-host"] || req.get("host")) as string;
-    const callbackUrl = `${protocol}://${host}/auth/google/callback`;
+    const callbackUrl = "http://localhost:3000/auth/google/callback";
 
     authenticateGoogle({
       scope: ["profile", "email"],
       callbackURL: callbackUrl,
+      successRedirect: "http://localhost:5174/",
+      failureRedirect: "http://localhost:5174/auth?error=authentication_failed",
     })(req, res, next);
   });
 
-  app.get(
-    "/auth/google/callback",
-    (req: Request, res: Response, next: NextFunction) => {
-      authenticateGoogle({
-        failureRedirect: "/auth?error=authentication_failed",
-        successRedirect: "/",
-      })(req, res, next);
-    },
+  app.get("/auth/google/callback", 
+    passport.authenticate("google", { failureRedirect: "/auth?error=authentication_failed" }),
+    (req: Request, res: Response) => {
+      // 認証成功後の処理
+      console.log("User logged in:", req.user);
+      res.redirect("http://localhost:5174/");
+    }
   );
 
   app.get(
@@ -250,33 +268,58 @@ export function registerRoutes(app: express.Application) {
     }),
   );
 
-  app.post(
-    "/api/stripe-webhook",
-    asyncHandler(async (req, res) => {
-      const customReq = req as CustomRequest;
-      const sig = customReq.headers["stripe-signature"];
-      if (!sig) {
-        res.status(400).json({ error: "No Stripe signature found" });
-        return;
-      }
+  // サーバー側のroutes登録関数内など
+  app.get("/api/public-config", (req, res) => {
+    const publicKey = process.env.STRIPE_PUBLIC_KEY || "";
+    res.json({ stripePublicKey: publicKey });
+  });
 
-      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-      if (!webhookSecret) {
-        res.status(500).json({ error: "Webhook secret is not configured" });
-        return;
-      }
+  app.post("/api/stripe-webhook", express.raw({type: 'application/json'}), (req, res) => {
+    const sig = req.headers["stripe-signature"];
+    console.log("stripe webhook section")
+    if (!sig) {
+      return res.status(400).json({error: "No Stripe signature found"});
+    }
+  
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+      return res.status(500).json({error: "Webhook secret is not configured"});
+    }
+  
+    let event: Stripe.Event;
+    try {
+      event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    } catch (err: any) {
+      console.error("⚠️  Webhook signature verification failed.", err.message);
+      return res.sendStatus(400);
+    }
+  
+    // イベントタイプごとに処理を分岐
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
 
-      const rawBody = customReq.rawBody;
-      if (!rawBody) {
-        res.status(400).json({ error: "No raw body available" });
-        return;
+      console.log("adding credit in DB")
+  
+      // メタデータからユーザーIDとクレジット数を取得
+      const userId = Number(session.metadata?.userId);
+      const credits = Number(session.metadata?.credits);
+  
+      if (userId && credits) {
+        // DBの該当ユーザーのクレジットを更新
+        db.update(users)
+          .set({ credit: sql`${users.credit} + ${credits}` })
+          .where(eq(users.id, userId))
+          .then(() => {
+            console.log(`User ${userId} credited with ${credits} credits.`);
+          })
+          .catch(err => console.error("Failed to update credits:", err));
+      } else {
+        console.error("Missing userId or credits in metadata.");
       }
-
-      const event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
-      // Handle event as needed
-      res.json({ received: true });
-    }),
-  );
+    }
+  
+    res.json({received: true});
+  });
 
   app.post(
     "/api/upload",
@@ -288,6 +331,7 @@ export function registerRoutes(app: express.Application) {
     ]),
     asyncHandler(async (req, res) => {
       const customReq = req as CustomRequest;
+      console.log("/api/upload is called")
       try {
         const files = customReq.files as {
           [fieldname: string]: Express.Multer.File[];
@@ -303,27 +347,28 @@ export function registerRoutes(app: express.Application) {
         const zipFileName = `archive-${Date.now()}.zip`;
         const zipPath = path.join(process.cwd(), "uploads", zipFileName);
 
-        await createZipArchive(fileNames, zipPath);
+        //checking
+        console.log(zipPath)
 
-        // const [uploadRecord] = await db
-        //   .insert(uploads)
-        //   .values({
-        //     status: "completed",
-        //     file_count: fileNames.length,
-        //     zip_path: zipPath,
-        //   })
-        //   .returning();
+        await createZipArchive(fileNames, zipPath);
 
         const zipFile = await readFile(zipPath);
         const file = new Blob([zipFile], { type: "application/zip" });
 
         let falUrl: string;
+
+        console.log(file)
+
         if (process.env.AI_TRAINING_API_ENV === "production") {
           fal.config({ credentials: process.env.FAL_AI_API_KEY });
           falUrl = await fal.storage.upload(file);
+          console.log("training in prod")
         } else {
           falUrl = `https://v3.fal.media/files/mock/${Buffer.from(Math.random().toString()).toString("hex").slice(0, 8)}_${Date.now()}.zip`;
+          console.log("training in mock")
         }
+
+        console.log("falUrl:",falUrl)
 
         await Promise.all([
           ...fileNames.map((fileName) =>
@@ -336,9 +381,10 @@ export function registerRoutes(app: express.Application) {
           ),
         ]);
 
+        console.log("file deleted")
+
         res.json({
           success: true,
-          uploadId: uploadRecord.id,
           falUrl,
         });
       } catch (error) {
@@ -352,6 +398,7 @@ export function registerRoutes(app: express.Application) {
     "/api/train",
     requireAuth,
     asyncHandler(async (req, res) => {
+      console.log("/api/train is called")
       const customReq = req as CustomRequest;
       if (!isAuthenticatedRequest(customReq)) {
         res.status(401).json({ error: "Authentication required" });
@@ -359,6 +406,7 @@ export function registerRoutes(app: express.Application) {
       }
 
       const { falUrl } = customReq.body;
+      console.log("falUrl:",falUrl)
       if (!falUrl) {
         res.status(400).json({ error: "FAL URL is required" });
         return;
@@ -381,6 +429,8 @@ export function registerRoutes(app: express.Application) {
         .update(users)
         .set({ credit: user.credit - 20 })
         .where(eq(users.id, customReq.user.id));
+
+      console.log("done deduct credit")
 
       const [lastModel] = await db
         .select({ name: training_models.name })
@@ -430,6 +480,9 @@ export function registerRoutes(app: express.Application) {
           },
         };
       }
+
+      console.log("done training")
+      console.log("result:",result)
 
       await db.insert(training_models).values({
         user_id: customReq.user.id,
@@ -573,6 +626,8 @@ export function registerRoutes(app: express.Application) {
         res.status(401).json({ error: "Authentication required" });
         return;
       }
+
+      console.log("/api/photos is called")
 
       const photos = await db
         .select({

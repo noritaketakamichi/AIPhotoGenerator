@@ -49,9 +49,7 @@ passport.use(
       });
       console.log('========================\n');
       console.log('Auth Configuration:', {
-        callbackURL: process.env.NODE_ENV === 'production'
-          ? 'https://466108c8-ed88-4061-af7f-61e53df5b8eb-00-mkii563l5bz7.sisko.replit.dev/auth/google/callback'
-          : 'http://localhost:5000/auth/google/callback',
+        callbackURL: 'http://localhost:3000/auth/google/callback',
         environment: process.env.NODE_ENV
       });
       try {
@@ -84,13 +82,16 @@ passport.use(
 
 // Serialize user for the session
 passport.serializeUser((user: any, done) => {
+  console.log("serializeUser:", user);
   done(null, user.id);
 });
 
 // Deserialize user from the session
 passport.deserializeUser(async (id: number, done) => {
   try {
+    console.log("deserializeUser called with id:", id);
     const user = await db.select().from(users).where(eq(users.id, id));
+    console.log("User found:", user);
     done(null, user[0]);
   } catch (error) {
     done(error);

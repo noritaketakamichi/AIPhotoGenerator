@@ -1,11 +1,12 @@
-import { useState } from "react";
-import { loadStripe } from "@stripe/stripe-js";
+import { useEffect, useState } from "react";
+import { loadStripe, Stripe } from "@stripe/stripe-js";
 
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
 // Initialize Stripe with public key
-const STRIPE_PUBLIC_KEY = import.meta.env.VITE_STRIPE_PUBLIC_KEY;
+const STRIPE_PUBLIC_KEY = import.meta.env.STRIPE_PUBLIC_KEY;
+console.log(STRIPE_PUBLIC_KEY)
 if (!STRIPE_PUBLIC_KEY) {
   console.error('Stripe public key is not set in environment variables');
 }
@@ -29,6 +30,23 @@ const creditOptions: CreditOption[] = [
 export default function ChargePage() {
   const [selectedOption, setSelectedOption] = useState<CreditOption>(creditOptions[0]);
   const { toast } = useToast();
+  const [stripe, setStripe] = useState<Stripe | null>(null);
+
+  useEffect(() => {
+    fetch("http://localhost:3000/api/public-config", { credentials: "include" })
+      .then(res => res.json())
+      .then(async data => {
+        if (data.stripePublicKey) {
+          const loadedStripe = await loadStripe(data.stripePublicKey);
+          setStripe(loadedStripe);
+        } else {
+          console.error("No stripePublicKey found");
+        }
+      })
+      .catch(err => {
+        console.error("Failed to load public config:", err);
+      });
+  }, []);
 
   return (
     <div className="container mx-auto p-4">
@@ -70,59 +88,57 @@ export default function ChargePage() {
               ))}
             </RadioGroup>
 
-            <Button 
-              className="w-full" 
-              size="lg"
-              onClick={async () => {
-                try {
-                  const response = await fetch('/api/create-checkout-session', {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                      credits: selectedOption.credits,
-                      amount: selectedOption.price,
-                    }),
-                  });
+              <Button 
+        className="w-full" 
+        size="lg"
+        onClick={async () => {
+          try {
+            const response = await fetch('http://localhost:3000/api/create-checkout-session', {
+              method: 'POST',
+              credentials: "include",
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                credits: selectedOption.credits,
+                amount: selectedOption.price,
+              }),
+            });
 
-                  if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || 'Failed to create checkout session');
-                  }
+            if (!response.ok) {
+              const error = await response.json();
+              throw new Error(error.error || 'Failed to create checkout session');
+            }
 
-                  const session = await response.json();
-                  
-                  if (!session || !session.id) {
-                    throw new Error('Invalid checkout session response');
-                  }
+            const session = await response.json();
+            
+            if (!session || !session.id) {
+              throw new Error('Invalid checkout session response');
+            }
 
-                  // Load Stripe.js
-                  const stripe = await stripePromise;
-                  if (!stripe) {
-                    throw new Error('Failed to initialize Stripe');
-                  }
-                  
-                  // Redirect to Stripe Checkout
-                  const { error } = await stripe.redirectToCheckout({
-                    sessionId: session.id,
-                  });
+            if (!stripe) {
+              throw new Error('Stripe not initialized yet');
+            }
 
-                  if (error) {
-                    throw new Error(error.message);
-                  }
-                } catch (error) {
-                  console.error('Payment error:', error);
-                  toast({
-                    title: "Payment Error",
-                    description: "Failed to initiate payment. Please try again.",
-                    variant: "destructive",
-                  });
-                }
-              }}
-            >
-              Buy {selectedOption.credits} credits
-            </Button>
+            const { error } = await stripe.redirectToCheckout({
+              sessionId: session.id,
+            });
+
+            if (error) {
+              throw new Error(error.message);
+            }
+          } catch (error) {
+            console.error('Payment error:', error);
+            toast({
+              title: "Payment Error",
+              description: "Failed to initiate payment. Please try again.",
+              variant: "destructive",
+            });
+          }
+        }}
+      >
+        Buy {selectedOption.credits} credits
+      </Button>
           </div>
         </Card>
       </div>
