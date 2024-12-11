@@ -25,6 +25,9 @@ import { EventEmitter } from 'events';
 
 import cors from "cors";
 
+// グローバルまたはファイルスコープでイベントエミッターを作成
+const trainingEmitter = new EventEmitter();
+
 interface User {
   id: number;
   email: string;
@@ -78,6 +81,7 @@ const asyncHandler: AsyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req as CustomRequest, res, next)).catch(next);
 };
 
+
 // Auth middleware
 const requireAuth: RequestHandler = (req, res, next) => {
   const customReq = req as CustomRequest;
@@ -93,9 +97,6 @@ const requireAuth: RequestHandler = (req, res, next) => {
   }
   next();
 };
-
-// グローバルまたはファイルスコープでイベントエミッターを作成
-const trainingEmitter = new EventEmitter();
 
 interface GoogleAuthOptions {
   scope?: string[];
@@ -525,29 +526,7 @@ export function registerRoutes(app: express.Application) {
 
       res.json(result.data);
     }),
-  );
-
-  app.get("/api/training-progress", (req, res) => {
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-    // res.flushHeaders(); // これはheaders送信専用で、res.flush()とは別
-  
-    // SSE接続中に定期的にres.write()すればOK
-    res.write(`event: message\n`);
-    res.write(`data: start\n\n`);
-  
-    // イベントエミッターなどで進捗受信時:
-    trainingEmitter.on("progressUpdate", (percent: number) => {
-      res.write(`event: message\n`);
-      res.write(`data: ${percent}\n\n`);
-    });
-  
-    req.on("close", () => {
-      // 接続終了時の処理
-    });
-  });
-  
+  );  
 
   app.get(
     "/api/models",
@@ -702,4 +681,55 @@ export function registerRoutes(app: express.Application) {
       res.json(photos);
     }),
   );
+}
+
+/**
+ * SSEエンドポイント
+ * SSEで進捗（percent）を送信する
+ */
+export function registerSSEEndpoint(app: any) {
+  // /api/training-progressでSSE接続
+  app.get("/api/training-progress", (req: Request, res: Response) => {
+    console.log("SSE connection opened to /api/training-progress");
+
+    // SSE基本ヘッダ
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    // Heroku上で圧縮が有効でも、このエンドポイントでidentityを指定することで圧縮無効化を試みる
+    res.setHeader("Content-Encoding", "identity");
+
+    // ヘッダ送信
+    // flushHeadersは必須ではないが、送っておくと即時にクライアントにヘッダを返せる
+    // Express標準ではないため、使用できない場合は削除
+    if (typeof (res as any).flushHeaders === 'function') {
+      (res as any).flushHeaders();
+    }
+
+    // 定期的にコメント行送信で接続維持（15秒おき）
+    const keepAliveInterval = setInterval(() => {
+      // コメント行: クライアントは表示しないが接続維持用
+      res.write(':keepalive\n\n');
+    }, 15000);
+
+    // progressUpdateイベントを受け取るハンドラ
+    const onProgress = (percent: number) => {
+      console.log(`Emitting progress update: ${percent}%`);
+      res.write(`event: message\n`);
+      res.write(`data: ${percent}\n\n`);
+      // flushがある場合はflushでバッファをフラッシュできるが、必須ではない
+      if (typeof (res as any).flush === 'function') {
+        (res as any).flush();
+      }
+    };
+
+    trainingEmitter.on('progressUpdate', onProgress);
+
+    // クライアントが切断した場合
+    req.on('close', () => {
+      console.log("SSE connection closed");
+      trainingEmitter.off('progressUpdate', onProgress);
+      clearInterval(keepAliveInterval);
+    });
+  });
 }

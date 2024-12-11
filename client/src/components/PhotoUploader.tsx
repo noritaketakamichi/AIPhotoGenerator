@@ -24,7 +24,6 @@ interface TrainingResult {
   config_file?: { url: string };
 }
 
-// APIベースURL
 const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 export function PhotoUploader() {
@@ -56,18 +55,16 @@ export function PhotoUploader() {
     }
   }, [models, isLoading]);
 
-  // SSEで進捗状況を受信するイベントソース
+  // SSEによる進捗受信
   useEffect(() => {
     const source = new EventSource(`${apiUrl}/api/training-progress`, { withCredentials: true });
     source.onmessage = (e) => {
-      const percentStr = e.data;
-      const percent = parseInt(percentStr, 10);
-      if (!isNaN(percent)) {
-        setUploadProgress(percent);
-      }
+      console.log("Received SSE data:", e.data);
+      const percent = parseInt(e.data, 10);
+      if (!isNaN(percent)) setUploadProgress(percent);
     };
     source.onerror = (e) => {
-      console.error("SSE error:", e);
+      console.error("SSE error event:", e);
     };
     return () => {
       source.close();
@@ -91,7 +88,7 @@ export function PhotoUploader() {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { "image/*": [".jpeg", ".jpg", ".png", ".webp"] },
-    maxSize: 5242880, // 5MB
+    maxSize: 5242880,
   });
 
   const startTraining = async (url: string) => {
@@ -252,7 +249,12 @@ export function PhotoUploader() {
 
                   <div className="space-y-2">
                     {uploadMutation.isPending && (
-                      <Progress value={uploadProgress} className="w-full" />
+                      <div>
+                        <Progress value={uploadProgress} className="w-full" />
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {uploadProgress}%
+                        </p>
+                      </div>
                     )}
 
                     <div className="flex justify-between items-center">
@@ -339,10 +341,7 @@ export function PhotoUploader() {
 
                     if (!response.ok) {
                       const errorData = await response.json();
-                      if (
-                        response.status === 403 &&
-                        errorData.error === "Insufficient credits"
-                      ) {
+                      if (response.status === 403 && errorData.error === "Insufficient credits") {
                         toast({
                           title: "Not Enough Credits",
                           description:
