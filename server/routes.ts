@@ -148,7 +148,8 @@ const upload = multer({
 });
 
 export function registerRoutes(app: express.Application) {
-  // Session middleware
+  const isProduction = process.env.NODE_ENV === "production";
+
   app.use(
     session({
       secret: process.env.SESSION_SECRET || "development-secret-key",
@@ -156,8 +157,8 @@ export function registerRoutes(app: express.Application) {
       saveUninitialized: false,
       proxy: true,
       cookie: {
-        secure: false,
-        sameSite: "lax",
+        secure: isProduction, // 本番環境ではtrue、開発環境ではfalse
+        sameSite: isProduction ? "none" : "lax", // 本番環境では"none"、開発では"lax"
         maxAge: 24 * 60 * 60 * 1000,
       },
     })
