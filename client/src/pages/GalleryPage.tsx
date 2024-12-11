@@ -16,11 +16,13 @@ interface GeneratedPhoto {
 export default function GalleryPage() {
   const { user } = useAuth();
   console.log("gallery page")
+  // 環境変数からAPIのベースURLを取得。設定されていない場合はローカル用URLを使用
+  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
   const { data: photos = [], isLoading } = useQuery<GeneratedPhoto[]>({
     queryKey: ["/api/photos"],
     enabled: !!user,
     queryFn: async () => {
-      const res = await fetch("http://localhost:3000/api/photos", {
+      const res = await fetch(`${apiUrl}/api/photos`, {
         credentials: "include", // 認証が必要ならCookieを送る
       });
       if (!res.ok) {

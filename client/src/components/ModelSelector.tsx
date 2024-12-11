@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
 
-export interface Model {
+interface Model {
   id: number;
   name: string;
   trainingDataUrl: string;
@@ -19,9 +19,22 @@ interface ModelSelectorProps {
   onModelSelect: (model: Model | null) => void;
 }
 
+// 環境変数からAPIのベースURLを取得（本番はHeroku Config VarsでVITE_API_URLを設定）
+// 開発時は.envにVITE_API_URL=http://localhost:3000などを記載
+const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
 export function ModelSelector({ onModelSelect }: ModelSelectorProps) {
   const { data: models = [], isLoading, isError, refetch } = useQuery<Model[]>({
-    queryKey: ["http://localhost:3000/api/models"],
+    queryKey: ["models"],
+    queryFn: async () => {
+      const response = await fetch(`${apiUrl}/api/models`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("Failed to fetch models");
+      }
+      return response.json();
+    },
     refetchOnMount: true,
   });
 

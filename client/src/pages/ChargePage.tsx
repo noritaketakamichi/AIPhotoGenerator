@@ -32,8 +32,11 @@ export default function ChargePage() {
   const { toast } = useToast();
   const [stripe, setStripe] = useState<Stripe | null>(null);
 
+  // 環境変数からAPIのベースURLを取得。設定されていない場合はローカル用URLを使用
+  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
   useEffect(() => {
-    fetch("http://localhost:3000/api/public-config", { credentials: "include" })
+    fetch(`${apiUrl}/api/public-config`, { credentials: "include" })
       .then(res => res.json())
       .then(async data => {
         if (data.stripePublicKey) {
@@ -93,7 +96,7 @@ export default function ChargePage() {
         size="lg"
         onClick={async () => {
           try {
-            const response = await fetch('http://localhost:3000/api/create-checkout-session', {
+            const response = await fetch(`${apiUrl}/api/create-checkout-session`, {
               method: 'POST',
               credentials: "include",
               headers: {

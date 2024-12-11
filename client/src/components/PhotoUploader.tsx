@@ -9,7 +9,13 @@ import { PhotoPreview } from "./PhotoPreview";
 import { UploadStatus } from "./UploadStatus";
 import { ModelSelector } from "./ModelSelector";
 import { Upload, Loader2 } from "lucide-react";
-import { type Model } from "./ModelSelector";
+interface Model {
+  id: number;
+  name: string;
+  trainingDataUrl: string;
+  configUrl: string;
+  createdAt: string;
+}
 
 export function PhotoUploader() {
   const [files, setFiles] = useState<File[]>([]);
@@ -20,6 +26,9 @@ export function PhotoUploader() {
     diffusers_lora_file?: { url: string };
     config_file?: { url: string };
   }
+  // 環境変数からAPIのベースURLを取得。設定されていない場合はローカル用URLを使用
+  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
   const [trainingResult, setTrainingResult] = useState<TrainingResult | null>(null);
   const [prompt, setPrompt] = useState<string>("");
   const [generatedImages, setGeneratedImages] = useState<
@@ -71,7 +80,7 @@ export function PhotoUploader() {
   // New function to call the training endpoint
   const startTraining = async (url: string) => {
     console.log("startTraining")
-    const response = await fetch("http://localhost:3000/api/train", {
+    const response = await fetch(`${apiUrl}/api/train`, {
       method: "POST",
       credentials: "include",
       headers: {
@@ -95,7 +104,7 @@ export function PhotoUploader() {
       });
 
       console.log(formData);
-      const response = await fetch("http://localhost:3000/api/upload", {
+      const response = await fetch(`${apiUrl}/api/upload`, {
         method: "POST",
         body: formData,
       });
@@ -320,7 +329,7 @@ export function PhotoUploader() {
                     }
 
                     setIsGenerating(true);
-                    const response = await fetch("http://localhost:3000/api/generate", {
+                    const response = await fetch(`${apiUrl}/api/generate`, {
                       method: "POST",
                       credentials: "include",
                       headers: {

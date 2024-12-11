@@ -24,13 +24,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [, setLocation] = useLocation();
 
+  // 環境変数からAPIのベースURLを取得。設定されていない場合はローカル用URLを使用
+  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
   useEffect(() => {
     fetchUser();
   }, []);
 
   const fetchUser = async () => {
     try {
-      const response = await fetch("http://localhost:3000/api/auth/user", {
+      const response = await fetch(`${apiUrl}/api/auth/user`, {
         credentials: "include",
       });
       if (response.ok) {
@@ -46,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUserData = async () => {
     try {
-      const response = await fetch("/api/auth/user");
+      const response = await fetch(`${apiUrl}/api/auth/user`);
       if (response.ok) {
         const userData = await response.json();
         setUser(userData);
@@ -65,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      const response = await fetch("http://localhost:3000/api/auth/logout", {
+      const response = await fetch(`${apiUrl}/api/auth/logout`, {
         method: "POST",
         credentials: "include", // ← これを追加
       });
