@@ -187,6 +187,9 @@ export function registerRoutes(app: express.Application) {
     const failureRedirect = isProduction
       ? `${FRONTEND_URL}/auth?error=authentication_failed`
       : "http://localhost:5174/auth?error=authentication_failed";
+
+    console.log("callback url:", callbackUrl)
+    console.log("successRedirect url:", successRedirect)
   
     authenticateGoogle({
       scope: ["profile", "email"],
