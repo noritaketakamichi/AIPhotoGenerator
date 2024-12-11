@@ -24,7 +24,12 @@ interface TrainingResult {
   config_file?: { url: string };
 }
 
+// 必ずVITE_API_URLを設定してください（ローカルならhttp://localhost:3000、本番なら本番URL）
 const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
+if (!apiUrl) {
+  throw new Error("VITE_API_URL is not defined. Please set it in your environment variables.");
+}
 
 export function PhotoUploader() {
   const [files, setFiles] = useState<File[]>([]);
@@ -34,9 +39,13 @@ export function PhotoUploader() {
   const [prompt, setPrompt] = useState<string>("");
   const [generatedImages, setGeneratedImages] = useState<Array<{ url: string; file_name: string }>>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const { toast } = useToast();
+  const { user, refreshUserData } = useAuth();
+
   const { data: models = [], isLoading } = useQuery<Model[]>({
     queryKey: ["/api/models"],
     queryFn: async () => {
+      console.log("Fetching models from:", `${apiUrl}/api/models`);
       const res = await fetch(`${apiUrl}/api/models`, { credentials: "include" });
       if (!res.ok) {
         throw new Error("Failed to fetch models");
@@ -45,31 +54,49 @@ export function PhotoUploader() {
     },
     refetchOnMount: true,
   });
-  const [isCreateModelOpen, setIsCreateModelOpen] = useState<boolean>(true);
-  const { toast } = useToast();
-  const { user, refreshUserData } = useAuth();
 
   useEffect(() => {
+    console.log("useEffect for models running:", { isLoading, models });
     if (!isLoading) {
       setIsCreateModelOpen(models.length === 0);
     }
   }, [models, isLoading]);
 
+  const [isCreateModelOpen, setIsCreateModelOpen] = useState<boolean>(true);
+
   // SSEによる進捗受信
   useEffect(() => {
-    const source = new EventSource(`${apiUrl}/api/training-progress`, { withCredentials: true });
+    console.log("useEffect for SSE running");
+    console.log("apiUrl:", apiUrl);
+    console.log("Attempting to connect to SSE at:", `${apiUrl}/api/training-progress`);
+
+    const source = new EventSource(`${apiUrl}/api/training-progress`);
+
+    source.onopen = () => {
+      console.log("SSE connection opened successfully");
+    };
+
     source.onmessage = (e) => {
       console.log("Received SSE data:", e.data);
       const percent = parseInt(e.data, 10);
-      if (!isNaN(percent)) setUploadProgress(percent);
+      if (!isNaN(percent)) {
+        console.log("Updating progress to:", percent, "%");
+        setUploadProgress(percent);
+      } else {
+        console.log("Received non-numeric data from SSE:", e.data);
+      }
     };
+
     source.onerror = (e) => {
       console.error("SSE error event:", e);
+      // 必要に応じて再接続ロジックを検討可能
     };
+
     return () => {
+      console.log("Cleaning up SSE connection");
       source.close();
     };
-  }, []);
+  }, [apiUrl]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length + files.length > 4) {
@@ -107,6 +134,7 @@ export function PhotoUploader() {
 
   const uploadMutation = useMutation({
     mutationFn: async (files: File[]) => {
+      console.log("Uploading files:", files);
       const formData = new FormData();
       files.forEach((file, index) => {
         formData.append(`photo${index + 1}`, file);
@@ -137,14 +165,14 @@ export function PhotoUploader() {
       try {
         console.log("Starting training process");
         const trainingData = await startTraining(data.falUrl);
-        console.log(trainingData);
+        console.log("Training result:", trainingData);
         setTrainingResult(trainingData);
 
         toast({
           title: "Training Complete",
           description: "AI model training finished successfully",
         });
-        await refreshUserData(); // Refresh credits after successful training
+        await refreshUserData();
       } catch (error: any) {
         console.error("Training error:", error);
         if (error.message?.includes("Insufficient credits")) {
@@ -362,7 +390,7 @@ export function PhotoUploader() {
                       title: "Success",
                       description: "Image generated successfully",
                     });
-                    await refreshUserData(); // Refresh credits after successful generation
+                    await refreshUserData(); 
                   } catch (error) {
                     console.error("Generation error:", error);
                     toast({

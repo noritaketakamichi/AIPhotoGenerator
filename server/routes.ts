@@ -22,10 +22,8 @@ import session from "express-session";
 import Stripe from "stripe";
 import { Strategy } from "passport-google-oauth20";
 import { EventEmitter } from 'events';
-
 import cors from "cors";
 
-// グローバルまたはファイルスコープでイベントエミッターを作成
 const trainingEmitter = new EventEmitter();
 
 interface User {
@@ -61,14 +59,14 @@ interface AuthenticatedRequest<
   user: User;
 }
 
-// Type guard for authenticated requests
+// Type guard
 function isAuthenticatedRequest(
   req: CustomRequest,
 ): req is AuthenticatedRequest {
   return req.user !== undefined;
 }
 
-// Async handler type: promise returns void only, not Response, to avoid type issues
+// Async handler
 type AsyncHandler = (
   fn: (
     req: CustomRequest<ParamsDictionary, any, any, ParsedQs>,
@@ -80,7 +78,6 @@ type AsyncHandler = (
 const asyncHandler: AsyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req as CustomRequest, res, next)).catch(next);
 };
-
 
 // Auth middleware
 const requireAuth: RequestHandler = (req, res, next) => {
@@ -109,7 +106,6 @@ const authenticateGoogle = (options: GoogleAuthOptions) => {
   return passport.authenticate("google", options as any);
 };
 
-// Initialize environment variables
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 dotenv.config({ path: path.join(__dirname, "../.env") });
@@ -118,12 +114,10 @@ const isProduction = process.env.NODE_ENV === "production";
 const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5174";
 
-// Initialize Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2024-11-20.acacia",
 });
 
-// Configure multer
 const storage = multer.diskStorage({
   destination: async function (req, file, cb) {
     const uploadDir = path.join(process.cwd(), "uploads");
@@ -152,8 +146,6 @@ const upload = multer({
 });
 
 export function registerRoutes(app: express.Application) {
-  const isProduction = process.env.NODE_ENV === "production";
-
   app.use(
     session({
       secret: process.env.SESSION_SECRET || "development-secret-key",
@@ -161,16 +153,16 @@ export function registerRoutes(app: express.Application) {
       saveUninitialized: false,
       proxy: true,
       cookie: {
-        secure: isProduction, // 本番環境ではtrue、開発環境ではfalse
-        sameSite: isProduction ? "none" : "lax", // 本番環境では"none"、開発では"lax"
+        secure: isProduction,
+        sameSite: isProduction ? "none" : "lax",
         maxAge: 24 * 60 * 60 * 1000,
       },
     })
   );
 
   app.use(cors({
-    origin: FRONTEND_URL,  // フロントエンドのURL
-    credentials: true      // Cookie送受信を許可
+    origin: FRONTEND_URL,
+    credentials: true
   }));
 
   app.use(passport.initialize());
@@ -192,10 +184,10 @@ export function registerRoutes(app: express.Application) {
     const failureRedirect = isProduction
       ? `${FRONTEND_URL}/auth?error=authentication_failed`
       : "http://localhost:5174/auth?error=authentication_failed";
-
+  
     console.log("callback url:", callbackUrl)
     console.log("successRedirect url:", successRedirect)
-  
+
     authenticateGoogle({
       scope: ["profile", "email"],
       callbackURL: callbackUrl,
@@ -204,10 +196,9 @@ export function registerRoutes(app: express.Application) {
     })(req, res, next);
   });
 
-  app.get("/auth/google/callback", 
+  app.get("/auth/google/callback",
     passport.authenticate("google", { failureRedirect: "/auth?error=authentication_failed" }),
     (req: Request, res: Response) => {
-      // 認証成功後の処理
       console.log("User logged in:", req.user);
       res.redirect(isProduction ? FRONTEND_URL : "http://localhost:5174/");
     }
@@ -286,7 +277,6 @@ export function registerRoutes(app: express.Application) {
     }),
   );
 
-  // サーバー側のroutes登録関数内など
   app.get("/api/public-config", (req, res) => {
     const publicKey = process.env.STRIPE_PUBLIC_KEY || "";
     res.json({ stripePublicKey: publicKey });
@@ -312,18 +302,15 @@ export function registerRoutes(app: express.Application) {
       return res.sendStatus(400);
     }
   
-    // イベントタイプごとに処理を分岐
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
 
       console.log("adding credit in DB")
   
-      // メタデータからユーザーIDとクレジット数を取得
       const userId = Number(session.metadata?.userId);
       const credits = Number(session.metadata?.credits);
   
       if (userId && credits) {
-        // DBの該当ユーザーのクレジットを更新
         db.update(users)
           .set({ credit: sql`${users.credit} + ${credits}` })
           .where(eq(users.id, userId))
@@ -365,7 +352,6 @@ export function registerRoutes(app: express.Application) {
         const zipFileName = `archive-${Date.now()}.zip`;
         const zipPath = path.join(process.cwd(), "uploads", zipFileName);
 
-        //checking
         console.log(zipPath)
 
         await createZipArchive(fileNames, zipPath);
@@ -466,7 +452,7 @@ export function registerRoutes(app: express.Application) {
       if (process.env.AI_TRAINING_API_ENV === "production") {
         const { fal } = await import("@fal-ai/client");
         fal.config({ credentials: process.env.FAL_AI_API_KEY });
-        let lastLogTime = 0; //track time to prevent too much logs
+        let lastLogTime = 0;
 
         result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
           input: {
@@ -476,17 +462,17 @@ export function registerRoutes(app: express.Application) {
           },
           logs: true,
           onQueueUpdate: (update) => {
+            console.log("onQueueUpdate called with status:", update.status);
             if (update.status === "IN_PROGRESS") {
-              // 3秒に1回、ログの最後の行を解析する例
               const now = Date.now();
               if (now - lastLogTime > 3000 && update.logs.length > 0) {
                 const lastLog = update.logs[update.logs.length - 1].message;
-                // 例： "100%|██████████| 100/100 [01:48<00:00,  1.05s/it]"
+                console.log("Attempting to extract percent from:", lastLog);
                 const percentMatch = lastLog.match(/(\d+)%/);
                 if (percentMatch) {
                   const percent = parseInt(percentMatch[1], 10);
                   if (!isNaN(percent)) {
-                    // イベント発火
+                    console.log("Emitting progressUpdate:", percent);
                     trainingEmitter.emit('progressUpdate', percent);
                   }
                 }
@@ -526,7 +512,7 @@ export function registerRoutes(app: express.Application) {
 
       res.json(result.data);
     }),
-  );  
+  );
 
   app.get(
     "/api/models",
@@ -683,53 +669,49 @@ export function registerRoutes(app: express.Application) {
   );
 }
 
-/**
- * SSEエンドポイント
- * SSEで進捗（percent）を送信する
- */
 export function registerSSEEndpoint(app: any) {
-  // /api/training-progressでSSE接続
   app.get("/api/training-progress", (req: Request, res: Response) => {
-    console.log("SSE connection opened to /api/training-progress");
-
-    // SSE基本ヘッダ
+    console.log("[SSE] /api/training-progress endpoint hit");
+    console.log("[SSE] Setting headers for SSE");
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
-    // Heroku上で圧縮が有効でも、このエンドポイントでidentityを指定することで圧縮無効化を試みる
     res.setHeader("Content-Encoding", "identity");
 
-    // ヘッダ送信
-    // flushHeadersは必須ではないが、送っておくと即時にクライアントにヘッダを返せる
-    // Express標準ではないため、使用できない場合は削除
     if (typeof (res as any).flushHeaders === 'function') {
+      console.log("[SSE] flushHeaders available, calling flushHeaders()");
       (res as any).flushHeaders();
+    } else {
+      console.log("[SSE] flushHeaders not available");
     }
 
-    // 定期的にコメント行送信で接続維持（15秒おき）
+    console.log("[SSE] Setting up keepalive interval");
     const keepAliveInterval = setInterval(() => {
-      // コメント行: クライアントは表示しないが接続維持用
       res.write(':keepalive\n\n');
+      if (typeof (res as any).flush === 'function') {
+        (res as any).flush();
+      }
+      console.log("[SSE] Sent keepalive");
     }, 15000);
 
-    // progressUpdateイベントを受け取るハンドラ
     const onProgress = (percent: number) => {
-      console.log(`Emitting progress update: ${percent}%`);
+      console.log(`[SSE] Emitting progress update: ${percent}%`);
       res.write(`event: message\n`);
       res.write(`data: ${percent}\n\n`);
-      // flushがある場合はflushでバッファをフラッシュできるが、必須ではない
       if (typeof (res as any).flush === 'function') {
         (res as any).flush();
       }
     };
 
+    console.log("[SSE] Registering onProgress listener");
     trainingEmitter.on('progressUpdate', onProgress);
 
-    // クライアントが切断した場合
     req.on('close', () => {
-      console.log("SSE connection closed");
+      console.log("[SSE] Connection closed by client");
       trainingEmitter.off('progressUpdate', onProgress);
       clearInterval(keepAliveInterval);
     });
+
+    console.log("[SSE] SSE setup complete, waiting for events...");
   });
 }
