@@ -186,28 +186,14 @@ export function registerRoutes(app: express.Application) {
     })(req, res, next);
   });
 
-  app.get("/auth/google/callback", (req: Request, res: Response, next: NextFunction) => {
-    passport.authenticate("google", (err, user, info) => {
-      if (err) {
-        console.error("Authentication Error:", err);
-        return res.status(500).json({ error: "Server error occurred" });
-      }
-      if (!user) {
-        console.error("No user returned:", info);
-        return res.status(401).json({ error: "Authentication failed" });
-      }
-  
-      req.logIn(user, (err) => {
-        if (err) {
-          console.error("Login Error:", err);
-          return next(err);
-        }
-        console.log("User logged in:", user);
-        // 認証後にフロントエンドへリダイレクト
-        res.redirect("http://localhost:5174/");
-      });
-    })(req, res, next);
-  });
+  app.get("/auth/google/callback", 
+    passport.authenticate("google", { failureRedirect: "/auth?error=authentication_failed" }),
+    (req: Request, res: Response) => {
+      // 認証成功後の処理
+      console.log("User logged in:", req.user);
+      res.redirect("http://localhost:5174/");
+    }
+  );
 
   app.get(
     "/api/auth/user",
