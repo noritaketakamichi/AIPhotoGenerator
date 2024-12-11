@@ -58,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = () => {
     console.log('Initiating Google login...');
-    const loginUrl = "http://localhost:3000/auth/google";
+    const loginUrl = "/auth/google";
     console.log('Redirecting to:', loginUrl);
     window.location.href = loginUrl;
   };
