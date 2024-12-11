@@ -43,7 +43,6 @@ interface CustomRequest<
     | Express.Multer.File[]
     | { [fieldname: string]: Express.Multer.File[] };
   user?: User;
-  // passportで追加されるメソッド
   logIn(user: any, done: (err: any) => void): void;
   logIn(user: any, options: any, done: (err: any) => void): void;
   logout(done: (err?: any) => void): void;
@@ -111,6 +110,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 dotenv.config({ path: path.join(__dirname, "../.env") });
 
+const isProduction = process.env.NODE_ENV === "production";
+const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5174";
+
 // Initialize Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2024-11-20.acacia",
@@ -161,8 +164,8 @@ export function registerRoutes(app: express.Application) {
   );
 
   app.use(cors({
-    origin: "http://localhost:5174",  // フロントエンドのURL
-    credentials: true                 // Cookie送受信を許可
+    origin: FRONTEND_URL,  // フロントエンドのURL
+    credentials: true      // Cookie送受信を許可
   }));
 
   app.use(passport.initialize());
@@ -173,16 +176,23 @@ export function registerRoutes(app: express.Application) {
   });
 
   app.get("/auth/google", (req: Request, res: Response, next: NextFunction) => {
-    const protocol = (req.headers["x-forwarded-proto"] ||
-      req.protocol) as string;
-    const host = (req.headers["x-forwarded-host"] || req.get("host")) as string;
-    const callbackUrl = "http://localhost:3000/auth/google/callback";
-
+    const callbackUrl = isProduction
+      ? `${BASE_URL}/auth/google/callback`
+      : "http://localhost:3000/auth/google/callback";
+  
+    const successRedirect = isProduction
+      ? `${FRONTEND_URL}/`
+      : "http://localhost:5174/";
+  
+    const failureRedirect = isProduction
+      ? `${FRONTEND_URL}/auth?error=authentication_failed`
+      : "http://localhost:5174/auth?error=authentication_failed";
+  
     authenticateGoogle({
       scope: ["profile", "email"],
       callbackURL: callbackUrl,
-      successRedirect: "http://localhost:5174/",
-      failureRedirect: "http://localhost:5174/auth?error=authentication_failed",
+      successRedirect: successRedirect,
+      failureRedirect: failureRedirect,
     })(req, res, next);
   });
 
@@ -191,7 +201,7 @@ export function registerRoutes(app: express.Application) {
     (req: Request, res: Response) => {
       // 認証成功後の処理
       console.log("User logged in:", req.user);
-      res.redirect("http://localhost:5174/");
+      res.redirect(isProduction ? FRONTEND_URL : "http://localhost:5174/");
     }
   );
 
