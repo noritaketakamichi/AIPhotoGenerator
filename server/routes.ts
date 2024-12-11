@@ -462,6 +462,7 @@ export function registerRoutes(app: express.Application) {
       if (process.env.AI_TRAINING_API_ENV === "production") {
         const { fal } = await import("@fal-ai/client");
         fal.config({ credentials: process.env.FAL_AI_API_KEY });
+        let lastLogTime = 0; //track time to prevent too much logs
 
         result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
           input: {
@@ -472,7 +473,12 @@ export function registerRoutes(app: express.Application) {
           logs: true,
           onQueueUpdate: (update) => {
             if (update.status === "IN_PROGRESS") {
-              update.logs.map((log) => log.message).forEach(console.log);
+              const now = Date.now();
+              // 3秒（3000ミリ秒）以上経過していたらログ出力
+              if (now - lastLogTime > 3000) {
+                update.logs.map((log) => log.message).forEach((msg) => console.log(msg));
+                lastLogTime = now; // 最終出力時刻を更新
+              }
             }
           },
         });
