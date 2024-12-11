@@ -9,6 +9,7 @@ import { PhotoPreview } from "./PhotoPreview";
 import { UploadStatus } from "./UploadStatus";
 import { ModelSelector } from "./ModelSelector";
 import { Upload, Loader2 } from "lucide-react";
+
 interface Model {
   id: number;
   name: string;
@@ -17,26 +18,32 @@ interface Model {
   createdAt: string;
 }
 
+interface TrainingResult {
+  modelId?: number;
+  diffusers_lora_file?: { url: string };
+  config_file?: { url: string };
+}
+
+// APIベースURL
+const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
 export function PhotoUploader() {
   const [files, setFiles] = useState<File[]>([]);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [falUrl, setFalUrl] = useState<string | null>(null);
-  interface TrainingResult {
-    modelId?: number;
-    diffusers_lora_file?: { url: string };
-    config_file?: { url: string };
-  }
-  // 環境変数からAPIのベースURLを取得。設定されていない場合はローカル用URLを使用
-  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
-
   const [trainingResult, setTrainingResult] = useState<TrainingResult | null>(null);
   const [prompt, setPrompt] = useState<string>("");
-  const [generatedImages, setGeneratedImages] = useState<
-    Array<{ url: string; file_name: string }>
-  >([]);
+  const [generatedImages, setGeneratedImages] = useState<Array<{ url: string; file_name: string }>>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const { data: models = [], isLoading } = useQuery<Model[]>({
     queryKey: ["/api/models"],
+    queryFn: async () => {
+      const res = await fetch(`${apiUrl}/api/models`, { credentials: "include" });
+      if (!res.ok) {
+        throw new Error("Failed to fetch models");
+      }
+      return res.json();
+    },
     refetchOnMount: true,
   });
   const [isCreateModelOpen, setIsCreateModelOpen] = useState<boolean>(true);
@@ -49,50 +56,55 @@ export function PhotoUploader() {
     }
   }, [models, isLoading]);
 
-  const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
-      if (acceptedFiles.length + files.length > 4) {
-        toast({
-          title: "Too many files",
-          description: "Please upload exactly 4 photos",
-          variant: "destructive",
-        });
-        return;
+  // SSEで進捗状況を受信するイベントソース
+  useEffect(() => {
+    const source = new EventSource(`${apiUrl}/api/training-progress`, { withCredentials: true });
+    source.onmessage = (e) => {
+      const percentStr = e.data;
+      const percent = parseInt(percentStr, 10);
+      if (!isNaN(percent)) {
+        setUploadProgress(percent);
       }
+    };
+    source.onerror = (e) => {
+      console.error("SSE error:", e);
+    };
+    return () => {
+      source.close();
+    };
+  }, []);
 
-      const imageFiles = acceptedFiles.filter((file) =>
-        file.type.startsWith("image/"),
-      );
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    if (acceptedFiles.length + files.length > 4) {
+      toast({
+        title: "Too many files",
+        description: "Please upload exactly 4 photos",
+        variant: "destructive",
+      });
+      return;
+    }
 
-      setFiles((prev) => [...prev, ...imageFiles].slice(0, 4));
-    },
-    [files, toast],
-  );
+    const imageFiles = acceptedFiles.filter((file) => file.type.startsWith("image/"));
+    setFiles((prev) => [...prev, ...imageFiles].slice(0, 4));
+  }, [files, toast]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: {
-      "image/*": [".jpeg", ".jpg", ".png", ".webp"],
-    },
+    accept: { "image/*": [".jpeg", ".jpg", ".png", ".webp"] },
     maxSize: 5242880, // 5MB
   });
 
-  // New function to call the training endpoint
   const startTraining = async (url: string) => {
-    console.log("startTraining")
+    console.log("startTraining");
     const response = await fetch(`${apiUrl}/api/train`, {
       method: "POST",
       credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ falUrl: url }),
     });
-
     if (!response.ok) {
       throw new Error("Training failed");
     }
-
     return response.json();
   };
 
@@ -103,30 +115,25 @@ export function PhotoUploader() {
         formData.append(`photo${index + 1}`, file);
       });
 
-      console.log(formData);
       const response = await fetch(`${apiUrl}/api/upload`, {
         method: "POST",
         body: formData,
       });
 
-      console.log("response:",response)
-
       if (!response.ok) {
         throw new Error("Upload failed");
       }
-
-      const result = (await response.json()) as {
+      const result = await response.json() as {
         success: boolean;
         uploadId: number;
         falUrl: string;
       };
-
       return result;
     },
     onSuccess: async (data) => {
       toast({
         title: "Success!",
-        description: "Photos uploaded and ZIP created successfully",
+        description: "Photos successfully uploaded & training is started",
       });
       setFalUrl(data.falUrl);
 
@@ -146,8 +153,7 @@ export function PhotoUploader() {
         if (error.message?.includes("Insufficient credits")) {
           toast({
             title: "Not Enough Credits",
-            description:
-              "Please charge your credits & enjoy generating photos! 🎨",
+            description: "Please charge your credits & enjoy generating photos! 🎨",
             variant: "default",
           });
         } else {
@@ -181,7 +187,6 @@ export function PhotoUploader() {
       return;
     }
 
-    // Check if user has enough credits (20 for training)
     if (!user?.credit || user.credit < 20) {
       toast({
         title: "Not Enough Credits",
@@ -200,15 +205,10 @@ export function PhotoUploader() {
         {/* Create Model Section */}
         <div className="space-y-4 border rounded-lg p-4">
           <div>
-            <div
-              className="flex items-center justify-between cursor-pointer"
-              onClick={() => setIsCreateModelOpen(!isCreateModelOpen)}
-            >
+            <div className="flex items-center justify-between cursor-pointer" onClick={() => setIsCreateModelOpen(!isCreateModelOpen)}>
               <div>
                 <h2 className="text-lg font-semibold">Create model</h2>
-                <p className="text-sm text-muted-foreground">
-                  Cost: 20 credits
-                </p>
+                <p className="text-sm text-muted-foreground">Cost: 20 credits</p>
               </div>
               <Button variant="ghost" size="sm">
                 {isCreateModelOpen ? "−" : "+"}
@@ -256,16 +256,11 @@ export function PhotoUploader() {
                     )}
 
                     <div className="flex justify-between items-center">
-                      <UploadStatus
-                        filesCount={files.length}
-                        isUploading={uploadMutation.isPending}
-                      />
+                      <UploadStatus filesCount={files.length} isUploading={uploadMutation.isPending} />
 
                       <Button
                         onClick={handleUpload}
-                        disabled={
-                          files.length !== 4 || uploadMutation.isPending
-                        }
+                        disabled={files.length !== 4 || uploadMutation.isPending}
                       >
                         {uploadMutation.isPending
                           ? "Processing..."
@@ -394,7 +389,7 @@ export function PhotoUploader() {
           </div>
         </div>
 
-{/* Generated Images Section */}
+        {/* Generated Images Section */}
         {generatedImages.length > 0 && (
           <div className="space-y-4">
             <h2 className="text-lg font-semibold">Generated Images</h2>

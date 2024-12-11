@@ -21,7 +21,7 @@ import passport from "./auth";
 import session from "express-session";
 import Stripe from "stripe";
 import { Strategy } from "passport-google-oauth20";
-//import { Blob } from "buffer";
+import { EventEmitter } from 'events';
 
 import cors from "cors";
 
@@ -93,6 +93,9 @@ const requireAuth: RequestHandler = (req, res, next) => {
   }
   next();
 };
+
+// グローバルまたはファイルスコープでイベントエミッターを作成
+const trainingEmitter = new EventEmitter();
 
 interface GoogleAuthOptions {
   scope?: string[];
@@ -473,14 +476,23 @@ export function registerRoutes(app: express.Application) {
           logs: true,
           onQueueUpdate: (update) => {
             if (update.status === "IN_PROGRESS") {
+              // 3秒に1回、ログの最後の行を解析する例
               const now = Date.now();
-              // 3秒（3000ミリ秒）以上経過していたらログ出力
-              if (now - lastLogTime > 3000) {
-                update.logs.map((log) => log.message).forEach((msg) => console.log(msg));
-                lastLogTime = now; // 最終出力時刻を更新
+              if (now - lastLogTime > 3000 && update.logs.length > 0) {
+                const lastLog = update.logs[update.logs.length - 1].message;
+                // 例： "100%|██████████| 100/100 [01:48<00:00,  1.05s/it]"
+                const percentMatch = lastLog.match(/(\d+)%/);
+                if (percentMatch) {
+                  const percent = parseInt(percentMatch[1], 10);
+                  if (!isNaN(percent)) {
+                    // イベント発火
+                    trainingEmitter.emit('progressUpdate', percent);
+                  }
+                }
+                lastLogTime = now;
               }
             }
-          },
+          }
         });
       } else {
         result = {
@@ -514,6 +526,28 @@ export function registerRoutes(app: express.Application) {
       res.json(result.data);
     }),
   );
+
+  app.get("/api/training-progress", (req, res) => {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    // res.flushHeaders(); // これはheaders送信専用で、res.flush()とは別
+  
+    // SSE接続中に定期的にres.write()すればOK
+    res.write(`event: message\n`);
+    res.write(`data: start\n\n`);
+  
+    // イベントエミッターなどで進捗受信時:
+    trainingEmitter.on("progressUpdate", (percent: number) => {
+      res.write(`event: message\n`);
+      res.write(`data: ${percent}\n\n`);
+    });
+  
+    req.on("close", () => {
+      // 接続終了時の処理
+    });
+  });
+  
 
   app.get(
     "/api/models",
