@@ -82,7 +82,13 @@ const asyncHandler: AsyncHandler = (fn) => (req, res, next) => {
 // Auth middleware
 const requireAuth: RequestHandler = (req, res, next) => {
   const customReq = req as CustomRequest;
+  console.log("Checking auth:", {
+    user: customReq.user,
+    session: (req as any).session,
+    cookies: req.headers.cookie,
+  });
   if (!customReq.user) {
+    console.log("No user found in req.user");
     res.status(401).json({ error: "Authentication required" });
     return;
   }
@@ -276,33 +282,58 @@ export function registerRoutes(app: express.Application) {
     }),
   );
 
-  app.post(
-    "/api/stripe-webhook",
-    asyncHandler(async (req, res) => {
-      const customReq = req as CustomRequest;
-      const sig = customReq.headers["stripe-signature"];
-      if (!sig) {
-        res.status(400).json({ error: "No Stripe signature found" });
-        return;
-      }
+  // サーバー側のroutes登録関数内など
+  app.get("/api/public-config", (req, res) => {
+    const publicKey = process.env.STRIPE_PUBLIC_KEY || "";
+    res.json({ stripePublicKey: publicKey });
+  });
 
-      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-      if (!webhookSecret) {
-        res.status(500).json({ error: "Webhook secret is not configured" });
-        return;
-      }
+  app.post("/api/stripe-webhook", express.raw({type: 'application/json'}), (req, res) => {
+    const sig = req.headers["stripe-signature"];
+    console.log("stripe webhook section")
+    if (!sig) {
+      return res.status(400).json({error: "No Stripe signature found"});
+    }
+  
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+      return res.status(500).json({error: "Webhook secret is not configured"});
+    }
+  
+    let event: Stripe.Event;
+    try {
+      event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    } catch (err: any) {
+      console.error("⚠️  Webhook signature verification failed.", err.message);
+      return res.sendStatus(400);
+    }
+  
+    // イベントタイプごとに処理を分岐
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
 
-      const rawBody = customReq.rawBody;
-      if (!rawBody) {
-        res.status(400).json({ error: "No raw body available" });
-        return;
+      console.log("adding credit in DB")
+  
+      // メタデータからユーザーIDとクレジット数を取得
+      const userId = Number(session.metadata?.userId);
+      const credits = Number(session.metadata?.credits);
+  
+      if (userId && credits) {
+        // DBの該当ユーザーのクレジットを更新
+        db.update(users)
+          .set({ credit: sql`${users.credit} + ${credits}` })
+          .where(eq(users.id, userId))
+          .then(() => {
+            console.log(`User ${userId} credited with ${credits} credits.`);
+          })
+          .catch(err => console.error("Failed to update credits:", err));
+      } else {
+        console.error("Missing userId or credits in metadata.");
       }
-
-      const event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
-      // Handle event as needed
-      res.json({ received: true });
-    }),
-  );
+    }
+  
+    res.json({received: true});
+  });
 
   app.post(
     "/api/upload",
@@ -609,6 +640,8 @@ export function registerRoutes(app: express.Application) {
         res.status(401).json({ error: "Authentication required" });
         return;
       }
+
+      console.log("/api/photos is called")
 
       const photos = await db
         .select({

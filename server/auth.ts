@@ -82,13 +82,16 @@ passport.use(
 
 // Serialize user for the session
 passport.serializeUser((user: any, done) => {
+  console.log("serializeUser:", user);
   done(null, user.id);
 });
 
 // Deserialize user from the session
 passport.deserializeUser(async (id: number, done) => {
   try {
+    console.log("deserializeUser called with id:", id);
     const user = await db.select().from(users).where(eq(users.id, id));
+    console.log("User found:", user);
     done(null, user[0]);
   } catch (error) {
     done(error);
