@@ -4,15 +4,17 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { db } from "./db";
 import { users } from "./db/schema";
 import { eq } from "drizzle-orm";
+import dotenv from "dotenv";
 
-// Augment express-session with our user type
+// 環境変数読み込み
+dotenv.config();
+
 declare module 'express-session' {
   interface SessionData {
     passport: { user: number }
   }
 }
 
-// Augment express Request with our user type
 declare module 'express' {
   interface User {
     id: number;
@@ -24,22 +26,24 @@ declare module 'express' {
     user?: User;
     logIn(user: User, done: (err: any) => void): void;
     logIn(user: User, options: any, done: (err: any) => void): void;
-    logout(options: Record<string, any>, done: (err: any) => void): void;
-    logout(done: (err: any) => void): void;
+    logout(options: Record<string, any>, done: (err?: any) => void): void;
+    logout(done: (err?: any) => void): void;
   }
 }
 
-// Configure Passport's Google Strategy
+// .envからBASE_URLを読み込む
+const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
+
 passport.use(
   new GoogleStrategy(
     {
       clientID: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      callbackURL: '/auth/google/callback',
+      // .envから取得したBASE_URLを使ってcallbackURLを構築
+      callbackURL: `${BASE_URL}/auth/google/callback`,
       proxy: true,
     },
     async (accessToken: string, refreshToken: string, profile: any, done: any) => {
-      // Log authentication details
       console.log('\n=== Google Auth Details ===');
       console.log('Auth Environment:', process.env.NODE_ENV);
       console.log('Profile:', {
@@ -49,9 +53,10 @@ passport.use(
       });
       console.log('========================\n');
       console.log('Auth Configuration:', {
-        callbackURL: '/auth/google/callback',
+        callbackURL: `${BASE_URL}/auth/google/callback`,
         environment: process.env.NODE_ENV
       });
+
       try {
         const email = profile.emails?.[0]?.value;
         
@@ -80,13 +85,11 @@ passport.use(
   )
 );
 
-// Serialize user for the session
 passport.serializeUser((user: any, done) => {
   console.log("serializeUser:", user);
   done(null, user.id);
 });
 
-// Deserialize user from the session
 passport.deserializeUser(async (id: number, done) => {
   try {
     console.log("deserializeUser called with id:", id);
@@ -98,7 +101,6 @@ passport.deserializeUser(async (id: number, done) => {
   }
 });
 
-// Auth middleware to check if user is authenticated
 export const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
   if (req.isAuthenticated()) {
     return next();
