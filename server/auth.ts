@@ -49,7 +49,7 @@ passport.use(
       });
       console.log('========================\n');
       console.log('Auth Configuration:', {
-        callbackURL: 'http://localhost:3000/auth/google/callback',
+        callbackURL: '/auth/google/callback',
         environment: process.env.NODE_ENV
       });
       try {
