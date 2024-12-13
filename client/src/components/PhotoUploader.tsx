@@ -300,7 +300,7 @@ export function PhotoUploader() {
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 className="w-full p-4 border rounded-md min-h-[120px] resize-y"
-                placeholder="Enter your prompt here..."
+                placeholder="Enter your prompt here... (Sorry, only English is supported now, Japanese will be supported soon)"
               />
               <Button
                 className="w-full"
@@ -381,9 +381,15 @@ export function PhotoUploader() {
 
         <div className="mt-4">
           {isTraining && (
-            <div className="text-blue-600 font-semibold">
-              モデルのトレーニングが開始されました。<br />
-              完了次第メールでお知らせしますので、しばらくお待ちください。
+            <div className="text-blue-600 font-semibold space-y-2">
+              <div>
+                モデルのトレーニングが開始されました。<br />
+                完了次第メールでお知らせしますので、しばらくお待ちください。
+              </div>
+              <div>
+                Model training has started.<br />
+                We'll notify you by email when it's complete. Please wait a moment.
+              </div>
             </div>
           )}
         </div>
