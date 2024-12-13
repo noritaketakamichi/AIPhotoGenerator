@@ -23,6 +23,7 @@ import Stripe from "stripe";
 import { Strategy } from "passport-google-oauth20";
 import { EventEmitter } from 'events';
 import cors from "cors";
+import nodemailer from "nodemailer";
 
 const trainingEmitter = new EventEmitter();
 
@@ -112,7 +113,7 @@ dotenv.config({ path: path.join(__dirname, "../.env") });
 
 const isProduction = process.env.NODE_ENV === "production";
 const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5174";
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2024-11-20.acacia",
@@ -179,11 +180,11 @@ export function registerRoutes(app: express.Application) {
   
     const successRedirect = isProduction
       ? `${FRONTEND_URL}/`
-      : "http://localhost:5174/";
+      : "http://localhost:5173/";
   
     const failureRedirect = isProduction
       ? `${FRONTEND_URL}/auth?error=authentication_failed`
-      : "http://localhost:5174/auth?error=authentication_failed";
+      : "http://localhost:5173/auth?error=authentication_failed";
   
     console.log("callback url:", callbackUrl)
     console.log("successRedirect url:", successRedirect)
@@ -200,7 +201,7 @@ export function registerRoutes(app: express.Application) {
     passport.authenticate("google", { failureRedirect: "/auth?error=authentication_failed" }),
     (req: Request, res: Response) => {
       console.log("User logged in:", req.user);
-      res.redirect(isProduction ? FRONTEND_URL : "http://localhost:5174/");
+      res.redirect(isProduction ? FRONTEND_URL : "http://localhost:5173/");
     }
   );
 
@@ -402,24 +403,23 @@ export function registerRoutes(app: express.Application) {
     "/api/train",
     requireAuth,
     asyncHandler(async (req, res) => {
-      console.log("/api/train is called")
       const customReq = req as CustomRequest;
       if (!isAuthenticatedRequest(customReq)) {
         res.status(401).json({ error: "Authentication required" });
         return;
       }
-
+  
       const { falUrl } = customReq.body;
-      console.log("falUrl:",falUrl)
       if (!falUrl) {
         res.status(400).json({ error: "FAL URL is required" });
         return;
       }
-
+  
       const [user] = await db
         .select()
         .from(users)
         .where(eq(users.id, customReq.user.id));
+  
       if (!user || user.credit < 20) {
         res.status(403).json({
           error: "Insufficient credits",
@@ -428,89 +428,126 @@ export function registerRoutes(app: express.Application) {
         });
         return;
       }
-
+  
       await db
         .update(users)
         .set({ credit: user.credit - 20 })
         .where(eq(users.id, customReq.user.id));
-
-      console.log("done deduct credit")
-
+  
       const [lastModel] = await db
         .select({ name: training_models.name })
         .from(training_models)
         .where(eq(training_models.user_id, customReq.user.id))
         .orderBy(desc(training_models.name))
         .limit(1);
-
+  
       const nextModelNumber = lastModel
         ? parseInt(lastModel.name.replace("model", "")) + 1
         : 1;
       const modelName = `model${nextModelNumber}`;
-
-      let result;
-      if (process.env.AI_TRAINING_API_ENV === "production") {
-        const { fal } = await import("@fal-ai/client");
-        fal.config({ credentials: process.env.FAL_AI_API_KEY });
+  
+      const userEmail = user.email;
+  
+      async function startTrainingJob(userId: number, userEmail: string, falUrl: string, modelName: string) {
+        let result: any;
         let lastLogTime = 0;
-
-        result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
-          input: {
-            steps: 1000,
-            create_masks: true,
-            images_data_url: falUrl,
-          },
-          logs: true,
-          onQueueUpdate: (update) => {
-            console.log("onQueueUpdate called with status:", update.status);
-            if (update.status === "IN_PROGRESS") {
-              const now = Date.now();
-              if (now - lastLogTime > 3000 && update.logs.length > 0) {
-                const lastLog = update.logs[update.logs.length - 1].message;
-                console.log("Attempting to extract percent from:", lastLog);
-                const percentMatch = lastLog.match(/(\d+)%/);
-                if (percentMatch) {
-                  const percent = parseInt(percentMatch[1], 10);
-                  if (!isNaN(percent)) {
-                    console.log("Emitting progressUpdate:", percent);
-                    trainingEmitter.emit('progressUpdate', percent);
+  
+        if (process.env.AI_TRAINING_API_ENV === "production") {
+          const { fal } = await import("@fal-ai/client");
+          fal.config({ credentials: process.env.FAL_AI_API_KEY });
+  
+          result = await fal.subscribe("fal-ai/flux-lora-fast-training", {
+            input: {
+              steps: 1000,
+              create_masks: true,
+              images_data_url: falUrl,
+            },
+            logs: true,
+            onQueueUpdate: (update) => {
+              if (update.status === "IN_PROGRESS") {
+                const now = Date.now();
+                if (now - lastLogTime > 3000 && update.logs.length > 0) {
+                  const lastLog = update.logs[update.logs.length - 1].message;
+                  const percentMatch = lastLog.match(/(\d+)%/);
+                  if (percentMatch) {
+                    const percent = parseInt(percentMatch[1], 10);
+                    if (!isNaN(percent)) {
+                      trainingEmitter.emit("progressUpdate", percent);
+                    }
                   }
+                  lastLogTime = now;
                 }
-                lastLogTime = now;
               }
-            }
+            },
+          });
+        } else {
+          // Mock環境
+          result = {
+            data: {
+              diffusers_lora_file: {
+                url: "https://v3.fal.media/files/mock/mock_lora_weights.safetensors",
+                content_type: "application/octet-stream",
+                file_name: "pytorch_lora_weights.safetensors",
+                file_size: 89745224,
+              },
+              config_file: {
+                url: "https://v3.fal.media/files/mock/mock_config.json",
+                content_type: "application/octet-stream",
+                file_name: "config.json",
+                file_size: 452,
+              },
+            },
+          };
+  
+          // 擬似的に進捗送信
+          for (let p = 0; p <= 100; p += 20) {
+            trainingEmitter.emit("progressUpdate", p);
+            await new Promise(r => setTimeout(r, 1000));
           }
+        }
+  
+        await db.insert(training_models).values({
+          user_id: userId,
+          name: modelName,
+          training_data_url: result.data.diffusers_lora_file.url,
+          config_url: result.data.config_file.url,
         });
-      } else {
-        result = {
-          data: {
-            diffusers_lora_file: {
-              url: "https://v3.fal.media/files/mock/mock_lora_weights.safetensors",
-              content_type: "application/octet-stream",
-              file_name: "pytorch_lora_weights.safetensors",
-              file_size: 89745224,
-            },
-            config_file: {
-              url: "https://v3.fal.media/files/mock/mock_config.json",
-              content_type: "application/octet-stream",
-              file_name: "config.json",
-              file_size: 452,
-            },
+  
+        // 最終完了通知
+        trainingEmitter.emit("progressUpdate", 100);
+  
+        // SMTP設定
+        const transporter = nodemailer.createTransport({
+          host: process.env.SMTP_HOST,
+          port: 465,
+          secure: true,
+          auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS,
           },
-        };
+        });
+
+        console.log("SMTP_USER:", process.env.SMTP_USER)
+        console.log("SMTP_PASS:", process.env.SMTP_PASS)
+        // メール送信
+        try {
+          await transporter.sendMail({
+            from: process.env.SMTP_USER,
+            to: userEmail,
+            subject: 'Your training job is complete!',
+            text: 'Your custom LoRA model training has finished successfully. You can now use your new model!\n\nPlease access the following URL:\nhttps://ai-sokkuri-photo-generator-2e54ad8fece0.herokuapp.com/',
+          });
+          console.log('Training completion email sent.');
+        } catch (error) {
+          console.error('Failed to send training completion email:', error);
+        }
       }
-
-      console.log("done training")
-      console.log("result:",result)
-
-      await db.insert(training_models).values({
-        user_id: customReq.user.id,
-        name: modelName,
-        training_data_url: result.data.diffusers_lora_file.url,
-        config_url: result.data.config_file.url,
-      });
-
-      res.json(result.data);
+  
+      startTrainingJob(customReq.user.id, userEmail, falUrl, modelName).catch((err) =>
+        console.error("Error in training job:", err)
+      );
+  
+      res.json({ message: "Training started. Check progress via SSE." });
     }),
   );
 

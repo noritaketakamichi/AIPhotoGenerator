@@ -24,7 +24,6 @@ interface TrainingResult {
   config_file?: { url: string };
 }
 
-// 必ずVITE_API_URLを設定してください（ローカルならhttp://localhost:3000、本番なら本番URL）
 const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 if (!apiUrl) {
@@ -32,20 +31,9 @@ if (!apiUrl) {
 }
 
 export function PhotoUploader() {
-  const [files, setFiles] = useState<File[]>([]);
-  const [uploadProgress, setUploadProgress] = useState<number>(0);
-  const [falUrl, setFalUrl] = useState<string | null>(null);
-  const [trainingResult, setTrainingResult] = useState<TrainingResult | null>(null);
-  const [prompt, setPrompt] = useState<string>("");
-  const [generatedImages, setGeneratedImages] = useState<Array<{ url: string; file_name: string }>>([]);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const { toast } = useToast();
-  const { user, refreshUserData } = useAuth();
-
-  const { data: models = [], isLoading } = useQuery<Model[]>({
+  const { data: models = [], isLoading, refetch: refetchModels } = useQuery<Model[]>({
     queryKey: ["/api/models"],
     queryFn: async () => {
-      console.log("Fetching models from:", `${apiUrl}/api/models`);
       const res = await fetch(`${apiUrl}/api/models`, { credentials: "include" });
       if (!res.ok) {
         throw new Error("Failed to fetch models");
@@ -54,49 +42,25 @@ export function PhotoUploader() {
     },
     refetchOnMount: true,
   });
+  const [files, setFiles] = useState<File[]>([]);
+  const [falUrl, setFalUrl] = useState<string | null>(null);
+  const [trainingResult, setTrainingResult] = useState<TrainingResult | null>(null);
+  const [prompt, setPrompt] = useState<string>("");
+  const [generatedImages, setGeneratedImages] = useState<Array<{ url: string; file_name: string }>>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const { toast } = useToast();
+  const { user, refreshUserData } = useAuth();
+  
+  // トレーニング中フラグ
+  const [isTraining, setIsTraining] = useState(false);
 
   useEffect(() => {
-    console.log("useEffect for models running:", { isLoading, models });
     if (!isLoading) {
       setIsCreateModelOpen(models.length === 0);
     }
   }, [models, isLoading]);
 
   const [isCreateModelOpen, setIsCreateModelOpen] = useState<boolean>(true);
-
-  // SSEによる進捗受信
-  useEffect(() => {
-    console.log("useEffect for SSE running");
-    console.log("apiUrl:", apiUrl);
-    console.log("Attempting to connect to SSE at:", `${apiUrl}/api/training-progress`);
-
-    const source = new EventSource(`${apiUrl}/api/training-progress`);
-
-    source.onopen = () => {
-      console.log("SSE connection opened successfully");
-    };
-
-    source.onmessage = (e) => {
-      console.log("Received SSE data:", e.data);
-      const percent = parseInt(e.data, 10);
-      if (!isNaN(percent)) {
-        console.log("Updating progress to:", percent, "%");
-        setUploadProgress(percent);
-      } else {
-        console.log("Received non-numeric data from SSE:", e.data);
-      }
-    };
-
-    source.onerror = (e) => {
-      console.error("SSE error event:", e);
-      // 必要に応じて再接続ロジックを検討可能
-    };
-
-    return () => {
-      console.log("Cleaning up SSE connection");
-      source.close();
-    };
-  }, [apiUrl]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length + files.length > 4) {
@@ -119,7 +83,6 @@ export function PhotoUploader() {
   });
 
   const startTraining = async (url: string) => {
-    console.log("startTraining");
     const response = await fetch(`${apiUrl}/api/train`, {
       method: "POST",
       credentials: "include",
@@ -134,7 +97,6 @@ export function PhotoUploader() {
 
   const uploadMutation = useMutation({
     mutationFn: async (files: File[]) => {
-      console.log("Uploading files:", files);
       const formData = new FormData();
       files.forEach((file, index) => {
         formData.append(`photo${index + 1}`, file);
@@ -158,40 +120,38 @@ export function PhotoUploader() {
     onSuccess: async (data) => {
       toast({
         title: "Success!",
-        description: "Photos successfully uploaded & training is started",
+        description: "Photos successfully uploaded. Starting training...",
       });
       setFalUrl(data.falUrl);
-
+    
       try {
-        console.log("Starting training process");
-        const trainingData = await startTraining(data.falUrl);
-        console.log("Training result:", trainingData);
-        setTrainingResult(trainingData);
-
-        toast({
-          title: "Training Complete",
-          description: "AI model training finished successfully",
+        const response = await fetch(`${apiUrl}/api/train`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ falUrl: data.falUrl }),
         });
-        await refreshUserData();
-      } catch (error: any) {
-        console.error("Training error:", error);
-        if (error.message?.includes("Insufficient credits")) {
-          toast({
-            title: "Not Enough Credits",
-            description: "Please charge your credits & enjoy generating photos! 🎨",
-            variant: "default",
-          });
-        } else {
-          toast({
-            title: "Training Failed",
-            description: "Failed to train AI model",
-            variant: "destructive",
-          });
+      
+        if (!response.ok) {
+          throw new Error("Failed to start training");
         }
+      
+        toast({
+          title: "Training Started",
+          description: "Your model is being trained. We will notify you by email once it's finished.",
+        });
+        setIsTraining(true);
+      } catch (err: any) {
+        console.error("Error starting training:", err);
+        toast({
+          title: "Training Start Error",
+          description: "Could not initiate training. Please try again.",
+          variant: "destructive",
+        });
+        setIsTraining(false);
       }
-
+    
       setFiles([]);
-      setUploadProgress(0);
     },
     onError: () => {
       toast({
@@ -276,15 +236,6 @@ export function PhotoUploader() {
                   </div>
 
                   <div className="space-y-2">
-                    {uploadMutation.isPending && (
-                      <div>
-                        <Progress value={uploadProgress} className="w-full" />
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {uploadProgress}%
-                        </p>
-                      </div>
-                    )}
-
                     <div className="flex justify-between items-center">
                       <UploadStatus filesCount={files.length} isUploading={uploadMutation.isPending} />
 
@@ -312,7 +263,6 @@ export function PhotoUploader() {
             <ModelSelector
               onModelSelect={(model) => {
                 if (model) {
-                  console.log("Selected model:", model);
                   setTrainingResult({
                     modelId: model.id,
                     diffusers_lora_file: { url: model.trainingDataUrl },
@@ -335,24 +285,16 @@ export function PhotoUploader() {
                 className="w-full"
                 disabled={isGenerating}
                 onClick={async () => {
-                  try {
-                    console.log("Current trainingResult:", trainingResult);
-                    if (
-                      !trainingResult?.modelId ||
-                      !trainingResult?.diffusers_lora_file?.url
-                    ) {
-                      console.log("Model validation failed:", {
-                        modelId: trainingResult?.modelId,
-                        loraUrl: trainingResult?.diffusers_lora_file?.url,
-                      });
-                      toast({
-                        title: "Error",
-                        description: "Please select a model first",
-                        variant: "destructive",
-                      });
-                      return;
-                    }
+                  if (!trainingResult?.modelId || !trainingResult?.diffusers_lora_file?.url) {
+                    toast({
+                      title: "Error",
+                      description: "Please select a model first",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
 
+                  try {
                     setIsGenerating(true);
                     const response = await fetch(`${apiUrl}/api/generate`, {
                       method: "POST",
@@ -414,6 +356,15 @@ export function PhotoUploader() {
               </Button>
             </div>
           </div>
+        </div>
+
+        <div className="mt-4">
+          {isTraining && (
+            <div className="text-blue-600 font-semibold">
+              モデルのトレーニングが開始されました。<br />
+              完了次第メールでお知らせしますので、しばらくお待ちください。
+            </div>
+          )}
         </div>
 
         {/* Generated Images Section */}
