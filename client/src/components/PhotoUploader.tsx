@@ -194,6 +194,14 @@ export function PhotoUploader() {
               <div>
                 <h2 className="text-lg font-semibold">Create model</h2>
                 <p className="text-sm text-muted-foreground">Cost: 20 credits</p>
+                <a 
+                  href="https://medium.com/@noritaket28/tips-for-uploading-photos-e16d6c3b8f3e" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-sm text-primary hover:underline"
+                >
+                  Tips for uploading photos
+                </a>
               </div>
               <Button variant="ghost" size="sm">
                 {isCreateModelOpen ? "−" : "+"}
@@ -275,6 +283,19 @@ export function PhotoUploader() {
             />
             <div className="mt-4 space-y-2">
               <label className="text-sm font-medium">Enter Prompt:</label>
+              <div className="text-sm text-muted-foreground mb-2">
+                Example: "a person as Santa Claus"
+              </div>
+              <div className="text-sm mb-2">
+                <a 
+                  href="https://medium.com/@noritaket28/prompt-samples-90e47d8a18c5" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-primary hover:underline"
+                >
+                  Prompt samples
+                </a>
+              </div>
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
